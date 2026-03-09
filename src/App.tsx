@@ -463,8 +463,30 @@ export default function App() {
   const resetUrna = () => {
     setStepIndex(0);
     setIsFinished(false);
+    setRestartCountdown(10);
     handleCorrige();
   };
+
+  // Auto-reinício após 10 segundos na tela FIM
+  const [restartCountdown, setRestartCountdown] = useState(10);
+
+  useEffect(() => {
+    if (!isFinished) return;
+    setRestartCountdown(10);
+
+    const interval = setInterval(() => {
+      setRestartCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          resetUrna();
+          return 10;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isFinished]);
 
   if (isLoading) {
     return (
@@ -484,7 +506,7 @@ export default function App() {
         {/* Screen Section */}
         <div className="flex-1 bg-zinc-100 border-4 border-zinc-400 rounded shadow-inner flex flex-col relative overflow-hidden">
           {isFinished ? (
-            <div className="flex-1 flex items-center justify-center bg-zinc-100">
+            <div className="flex-1 flex flex-col items-center justify-center bg-zinc-100">
               <motion.h1
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
@@ -492,11 +514,19 @@ export default function App() {
               >
                 FIM
               </motion.h1>
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.5 }}
+                className="mt-6 text-lg font-bold text-zinc-500 uppercase tracking-widest"
+              >
+                Reiniciando em {restartCountdown}s...
+              </motion.p>
               <button
                 onClick={resetUrna}
                 className="absolute bottom-4 right-4 text-xs text-zinc-400 hover:text-zinc-600 uppercase tracking-widest"
               >
-                Reiniciar
+                Reiniciar agora
               </button>
             </div>
           ) : isConfigPromptOpen ? (
