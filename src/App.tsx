@@ -424,6 +424,17 @@ export default function App() {
     handleCorrige();
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-zinc-400 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-zinc-400 font-bold uppercase text-sm tracking-widest">Carregando Urna...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-0 md:p-4 bg-zinc-950 overflow-hidden">
       <div className="bg-zinc-300 p-2 sm:p-4 md:p-8 rounded-none md:rounded-xl shadow-2xl flex flex-col md:flex-row gap-2 sm:gap-4 md:gap-8 max-w-5xl w-full h-screen md:h-auto border-none md:border-4 border-zinc-400">
