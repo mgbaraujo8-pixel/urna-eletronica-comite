@@ -7,10 +7,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Upload, X, Pencil, Trash2, Ban } from 'lucide-react';
 
-import { VOTE_STEPS, Candidate } from './constants';
+import { VOTE_STEPS, Candidate, VoteStep } from './constants';
+import { supabase } from './supabaseClient';
 
 export default function App() {
-  const [voteSteps, setVoteSteps] = useState(VOTE_STEPS);
+  const [voteSteps, setVoteSteps] = useState<VoteStep[]>(VOTE_STEPS);
   const [stepIndex, setStepIndex] = useState(0);
   const [digits, setDigits] = useState<string[]>([]);
   const [isFinished, setIsFinished] = useState(false);
@@ -18,7 +19,7 @@ export default function App() {
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [isWhiteVote, setIsWhiteVote] = useState(false);
   const [isInvalidVote, setIsInvalidVote] = useState(false);
-
+  const [isLoading, setIsLoading] = useState(true);
 
   // Config states
   const [isConfigPromptOpen, setIsConfigPromptOpen] = useState(false);
@@ -27,8 +28,102 @@ export default function App() {
   const [isShowingNewCandidateForm, setIsShowingNewCandidateForm] = useState(false);
   const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
   const [editCategoryData, setEditCategoryData] = useState({ title: '', digits: 0 });
-  const [enabledCategories, setEnabledCategories] = useState<string[]>(VOTE_STEPS.map(s => s.title));
+  const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
   const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: '', photo: '', age: '', activity: '' });
+
+  // === SUPABASE: Carregar dados ===
+  const loadDataFromSupabase = async () => {
+    try {
+      const { data: categories, error: catError } = await supabase
+        .from('categories')
+        .select('*')
+        .order('sort_order', { ascending: true });
+
+      if (catError) throw catError;
+
+      if (!categories || categories.length === 0) {
+        // Banco vazio: usar dados padrão e popular o banco
+        await seedDatabase();
+        return;
+      }
+
+      const { data: allCandidates, error: candError } = await supabase
+        .from('candidates')
+        .select('*');
+
+      if (candError) throw candError;
+
+      const steps: VoteStep[] = categories.map(cat => ({
+        id: cat.id,
+        title: cat.title,
+        digits: cat.digits,
+        enabled: cat.enabled,
+        sort_order: cat.sort_order,
+        candidates: (allCandidates || []).filter(c => c.category_id === cat.id).map(c => ({
+          id: c.id,
+          category_id: c.category_id,
+          number: c.number,
+          name: c.name,
+          party: c.party,
+          vice: c.vice,
+          photo: c.photo || '',
+          age: c.age,
+          activity: c.activity,
+          votes: c.votes || 0,
+          suspended: c.suspended || false,
+        }))
+      }));
+
+      setVoteSteps(steps);
+      setEnabledCategories(steps.filter(s => s.enabled !== false).map(s => s.title));
+    } catch (err) {
+      console.error('Erro ao carregar dados do Supabase:', err);
+      setVoteSteps(VOTE_STEPS);
+      setEnabledCategories(VOTE_STEPS.map(s => s.title));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const seedDatabase = async () => {
+    try {
+      for (let i = 0; i < VOTE_STEPS.length; i++) {
+        const step = VOTE_STEPS[i];
+        const { data: cat, error: catErr } = await supabase
+          .from('categories')
+          .insert({ title: step.title, digits: step.digits, sort_order: i, enabled: true })
+          .select()
+          .single();
+
+        if (catErr || !cat) continue;
+
+        for (const c of step.candidates) {
+          await supabase.from('candidates').insert({
+            category_id: cat.id,
+            name: c.name,
+            number: c.number,
+            party: c.party,
+            vice: c.vice || null,
+            photo: c.photo,
+            age: c.age || null,
+            activity: c.activity || null,
+            votes: 0,
+            suspended: false,
+          });
+        }
+      }
+      await loadDataFromSupabase();
+    } catch (err) {
+      console.error('Erro ao popular banco:', err);
+      setVoteSteps(VOTE_STEPS);
+      setEnabledCategories(VOTE_STEPS.map(s => s.title));
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadDataFromSupabase();
+  }, []);
 
   const audioRefs = useRef<{ [key: string]: HTMLAudioElement }>({});
 
@@ -130,6 +225,7 @@ export default function App() {
 
     if (canConfirm) {
       if (candidate) {
+        // Atualizar votos localmente
         setVoteSteps(prevSteps => prevSteps.map(step => {
           if (step.title !== currentStep.title) return step;
           return {
@@ -139,6 +235,32 @@ export default function App() {
             )
           };
         }));
+
+        // Persistir voto no Supabase
+        if (candidate.id) {
+          supabase.from('candidates')
+            .update({ votes: (candidate.votes || 0) + 1 })
+            .eq('id', candidate.id)
+            .then();
+
+          supabase.from('vote_logs').insert({
+            category_id: currentStep.id,
+            candidate_id: candidate.id,
+            vote_type: 'candidate',
+          }).then();
+        }
+      } else if (isWhiteVote && currentStep.id) {
+        supabase.from('vote_logs').insert({
+          category_id: currentStep.id,
+          candidate_id: null,
+          vote_type: 'white',
+        }).then();
+      } else if (isInvalidVote && currentStep.id) {
+        supabase.from('vote_logs').insert({
+          category_id: currentStep.id,
+          candidate_id: null,
+          vote_type: 'null',
+        }).then();
       }
 
       if (stepIndex < activeVoteSteps.length - 1) {
@@ -179,7 +301,7 @@ export default function App() {
     e.preventDefault();
   };
 
-  const addCandidate = (e: React.FormEvent) => {
+  const addCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCandidate.name || !newCandidate.number || !newCandidate.party) return;
 
@@ -189,33 +311,60 @@ export default function App() {
       return;
     }
 
-    const updatedSteps = [...voteSteps];
-    updatedSteps[targetStepIndex].candidates.push({
-      ...newCandidate,
-      photo: newCandidate.photo || `https://picsum.photos/seed/${newCandidate.name}/100/120`
-    });
+    const targetStep = voteSteps[targetStepIndex];
+    const photoUrl = newCandidate.photo || `https://picsum.photos/seed/${newCandidate.name}/100/120`;
 
-    setVoteSteps(updatedSteps);
+    if (targetStep.id) {
+      const { data, error } = await supabase.from('candidates').insert({
+        category_id: targetStep.id,
+        name: newCandidate.name,
+        number: newCandidate.number,
+        party: newCandidate.party,
+        photo: photoUrl,
+        age: newCandidate.age || null,
+        activity: newCandidate.activity || null,
+        votes: 0,
+        suspended: false,
+      }).select().single();
+
+      if (error) { alert('Erro ao salvar candidato: ' + error.message); return; }
+
+      const updatedSteps = [...voteSteps];
+      updatedSteps[targetStepIndex].candidates.push({ ...newCandidate, id: data.id, category_id: data.category_id, photo: photoUrl });
+      setVoteSteps(updatedSteps);
+    } else {
+      const updatedSteps = [...voteSteps];
+      updatedSteps[targetStepIndex].candidates.push({ ...newCandidate, photo: photoUrl });
+      setVoteSteps(updatedSteps);
+    }
+
     setNewCandidate({ name: '', number: '', party: '', photo: '', age: '', activity: '' });
     setIsShowingNewCandidateForm(false);
     alert("Candidato adicionado com sucesso!");
   };
 
-  const toggleSuspendCandidate = (stepIndex: number, candidateIndex: number) => {
+  const toggleSuspendCandidate = async (sIdx: number, cIdx: number) => {
     const updatedSteps = [...voteSteps];
-    const candidate = updatedSteps[stepIndex].candidates[candidateIndex];
-    updatedSteps[stepIndex].candidates[candidateIndex] = {
-      ...candidate,
-      suspended: !candidate.suspended
-    };
+    const c = updatedSteps[sIdx].candidates[cIdx];
+    const newSuspended = !c.suspended;
+    updatedSteps[sIdx].candidates[cIdx] = { ...c, suspended: newSuspended };
     setVoteSteps(updatedSteps);
+
+    if (c.id) {
+      await supabase.from('candidates').update({ suspended: newSuspended }).eq('id', c.id);
+    }
   };
 
-  const removeCandidate = (stepIndex: number, candidateIndex: number) => {
+  const removeCandidate = async (sIdx: number, cIdx: number) => {
     if (window.confirm("Esta ação removerá o candidato permanentemente. Deseja continuar?")) {
+      const c = voteSteps[sIdx].candidates[cIdx];
       const updatedSteps = [...voteSteps];
-      updatedSteps[stepIndex].candidates.splice(candidateIndex, 1);
+      updatedSteps[sIdx].candidates.splice(cIdx, 1);
       setVoteSteps(updatedSteps);
+
+      if (c.id) {
+        await supabase.from('candidates').delete().eq('id', c.id);
+      }
     }
   };
 
@@ -227,7 +376,7 @@ export default function App() {
     });
   };
 
-  const saveCategory = (index: number) => {
+  const saveCategory = async (index: number) => {
     if (!editCategoryData.title.trim() || editCategoryData.digits < 1) return;
 
     const oldTitle = voteSteps[index].title;
@@ -240,11 +389,29 @@ export default function App() {
     }
 
     setEditingCategoryIndex(null);
+
+    const catId = voteSteps[index].id;
+    if (catId) {
+      await supabase.from('categories').update({
+        title: editCategoryData.title,
+        digits: editCategoryData.digits,
+      }).eq('id', catId);
+    }
   };
 
-  const addCategory = () => {
+  const addCategory = async () => {
     const newCategoryTitle = `NOVA CATEGORIA ${voteSteps.length + 1}`;
-    const newStep = { title: newCategoryTitle, digits: 2, candidates: [] };
+
+    const { data, error } = await supabase.from('categories').insert({
+      title: newCategoryTitle,
+      digits: 2,
+      enabled: true,
+      sort_order: voteSteps.length,
+    }).select().single();
+
+    if (error) { alert('Erro ao criar categoria: ' + error.message); return; }
+
+    const newStep: VoteStep = { id: data.id, title: newCategoryTitle, digits: 2, enabled: true, sort_order: voteSteps.length, candidates: [] };
     setVoteSteps([...voteSteps, newStep]);
     setEnabledCategories([...enabledCategories, newCategoryTitle]);
     setEditingCategoryIndex(voteSteps.length);

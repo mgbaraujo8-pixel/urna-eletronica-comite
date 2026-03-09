@@ -1,4 +1,6 @@
 export interface Candidate {
+  id?: string;
+  category_id?: string;
   number: string;
   name: string;
   party: string;
@@ -11,11 +13,15 @@ export interface Candidate {
 }
 
 export interface VoteStep {
+  id?: string;
   title: string;
   digits: number;
+  enabled?: boolean;
+  sort_order?: number;
   candidates: Candidate[];
 }
 
+// Dados padrão usados como fallback quando o Supabase não está disponível
 export const VOTE_STEPS: VoteStep[] = [
   {
     title: "DEPUTADO FEDERAL",
