@@ -102,6 +102,13 @@ export default function App() {
 
   const seedDatabase = async () => {
     try {
+      // Verificar se já existem categorias para evitar duplicatas
+      const { data: existing } = await supabase.from('categories').select('id').limit(1);
+      if (existing && existing.length > 0) {
+        await loadDataFromSupabase();
+        return;
+      }
+
       for (let i = 0; i < VOTE_STEPS.length; i++) {
         const step = VOTE_STEPS[i];
         const { data: cat, error: catErr } = await supabase
