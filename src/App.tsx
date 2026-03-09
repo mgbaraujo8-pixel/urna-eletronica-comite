@@ -32,17 +32,32 @@ export default function App() {
   const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: '', photo: '', age: '', activity: '' });
 
   // === SUPABASE: Carregar dados ===
+  const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+
   const loadDataFromSupabase = async () => {
+    if (!isSupabaseConfigured) {
+      console.warn('Supabase não configurado. Usando dados locais.');
+      setVoteSteps(VOTE_STEPS);
+      setEnabledCategories(VOTE_STEPS.map(s => s.title));
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const { data: categories, error: catError } = await supabase
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout')), 8000)
+      );
+
+      const fetchPromise = supabase
         .from('categories')
         .select('*')
         .order('sort_order', { ascending: true });
 
+      const { data: categories, error: catError } = await Promise.race([fetchPromise, timeoutPromise]) as any;
+
       if (catError) throw catError;
 
       if (!categories || categories.length === 0) {
-        // Banco vazio: usar dados padrão e popular o banco
         await seedDatabase();
         return;
       }
@@ -53,13 +68,13 @@ export default function App() {
 
       if (candError) throw candError;
 
-      const steps: VoteStep[] = categories.map(cat => ({
+      const steps: VoteStep[] = categories.map((cat: any) => ({
         id: cat.id,
         title: cat.title,
         digits: cat.digits,
         enabled: cat.enabled,
         sort_order: cat.sort_order,
-        candidates: (allCandidates || []).filter(c => c.category_id === cat.id).map(c => ({
+        candidates: (allCandidates || []).filter((c: any) => c.category_id === cat.id).map((c: any) => ({
           id: c.id,
           category_id: c.category_id,
           number: c.number,
