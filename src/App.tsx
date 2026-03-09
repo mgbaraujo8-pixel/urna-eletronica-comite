@@ -439,6 +439,27 @@ export default function App() {
     setEditCategoryData({ title: newCategoryTitle, digits: 2 });
   };
 
+  const removeCategory = async (index: number) => {
+    if (voteSteps.length <= 1) {
+      alert('Não é possível remover a última categoria.');
+      return;
+    }
+    const step = voteSteps[index];
+    if (!window.confirm(`Tem certeza que deseja excluir a categoria "${step.title}"?\nTodos os candidatos desta categoria também serão removidos.`)) return;
+
+    // Remover do Supabase
+    if (step.id && isSupabaseConfigured) {
+      await supabase.from('candidates').delete().eq('category_id', step.id);
+      await supabase.from('categories').delete().eq('id', step.id);
+    }
+
+    // Remover do estado local
+    const updatedSteps = voteSteps.filter((_, i) => i !== index);
+    setVoteSteps(updatedSteps);
+    setEnabledCategories(enabledCategories.filter(c => c !== step.title));
+    if (editingCategoryIndex === index) setEditingCategoryIndex(null);
+  };
+
   const resetUrna = () => {
     setStepIndex(0);
     setIsFinished(false);
@@ -750,13 +771,22 @@ export default function App() {
                               </div>
                             </label>
 
-                            <button
-                              onClick={() => handleEditCategory(index)}
-                              className="text-zinc-400 hover:text-zinc-800 p-2 rounded transition-colors"
-                              title="Editar Categoria"
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
+                            <div className="flex gap-1">
+                              <button
+                                onClick={() => handleEditCategory(index)}
+                                className="text-zinc-400 hover:text-zinc-800 p-2 rounded transition-colors"
+                                title="Editar Categoria"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => removeCategory(index)}
+                                className="text-zinc-400 hover:text-red-600 p-2 rounded transition-colors"
+                                title="Excluir Categoria"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
