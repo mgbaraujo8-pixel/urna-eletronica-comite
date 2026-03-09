@@ -478,11 +478,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-0 md:p-4 bg-zinc-950 overflow-hidden">
-      <div className="bg-zinc-300 p-2 sm:p-4 md:p-8 rounded-none md:rounded-xl shadow-2xl flex flex-col md:flex-row gap-2 sm:gap-4 md:gap-8 max-w-5xl w-full h-screen md:h-auto border-none md:border-4 border-zinc-400">
+    <div className="h-screen w-screen overflow-hidden">
+      <div className="bg-zinc-300 p-2 sm:p-4 flex flex-row gap-2 sm:gap-4 w-full h-full">
 
         {/* Screen Section */}
-        <div className="flex-[1.2] md:flex-1 bg-zinc-100 border-4 border-zinc-400 rounded shadow-inner min-h-[250px] md:min-h-[400px] flex flex-col relative overflow-hidden">
+        <div className="flex-1 bg-zinc-100 border-4 border-zinc-400 rounded shadow-inner flex flex-col relative overflow-hidden">
           {isFinished ? (
             <div className="flex-1 flex items-center justify-center bg-zinc-100">
               <motion.h1
@@ -877,7 +877,7 @@ export default function App() {
         </div>
 
         {/* Keypad Section */}
-        <div className="w-full md:w-80 flex-1 md:flex-none bg-zinc-800 p-4 md:p-6 rounded-lg shadow-2xl flex flex-col justify-evenly md:justify-start gap-3 md:gap-6 border-b-8 border-zinc-900 overflow-y-auto">
+        <div className="w-72 sm:w-80 flex-none bg-zinc-800 p-4 sm:p-6 rounded-lg shadow-2xl flex flex-col justify-between gap-3 border-b-8 border-zinc-900 overflow-y-auto">
           <div className="grid grid-cols-3 gap-3">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'].map((num, idx) => (
               <button
