@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Upload, X, Pencil, Trash2, Ban } from 'lucide-react';
 
 import { VOTE_STEPS, Candidate, VoteStep } from './constants';
-import { supabase } from './supabaseClient';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 export default function App() {
   const [voteSteps, setVoteSteps] = useState<VoteStep[]>(VOTE_STEPS);
@@ -32,7 +32,6 @@ export default function App() {
   const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: '', photo: '', age: '', activity: '' });
 
   // === SUPABASE: Carregar dados ===
-  const isSupabaseConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
 
   const loadDataFromSupabase = async () => {
     if (!isSupabaseConfigured) {
