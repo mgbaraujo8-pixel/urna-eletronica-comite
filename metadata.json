@@ -1,0 +1,5 @@
+{
+  "name": "Urna Eletrônica COMITÊ",
+  "description": "Simulador da urna eletrônica com interface fiel e lógica de votação.",
+  "requestFramePermissions": []
+}
