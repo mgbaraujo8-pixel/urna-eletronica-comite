@@ -429,7 +429,7 @@ export default function App() {
   };
 
   const addCategory = async () => {
-    const newCategoryTitle = `NOVA CATEGORIA ${voteSteps.length + 1}`;
+    const newCategoryTitle = `NOVA FAIXA ETÁRIA ${voteSteps.length + 1}`;
 
     const { data, error } = await supabase.from('categories').insert({
       title: newCategoryTitle,
@@ -438,7 +438,7 @@ export default function App() {
       sort_order: voteSteps.length,
     }).select().single();
 
-    if (error) { alert('Erro ao criar categoria: ' + error.message); return; }
+    if (error) { alert('Erro ao criar faixa etária: ' + error.message); return; }
 
     const newStep: VoteStep = { id: data.id, title: newCategoryTitle, digits: 2, enabled: true, sort_order: voteSteps.length, candidates: [] };
     setVoteSteps([...voteSteps, newStep]);
@@ -449,11 +449,11 @@ export default function App() {
 
   const removeCategory = async (index: number) => {
     if (voteSteps.length <= 1) {
-      alert('Não é possível remover a última categoria.');
+      alert('Não é possível remover a última faixa etária.');
       return;
     }
     const step = voteSteps[index];
-    if (!window.confirm(`Tem certeza que deseja excluir a categoria "${step.title}"?\nTodos os candidatos desta categoria também serão removidos.`)) return;
+    if (!window.confirm(`Tem certeza que deseja excluir a faixa etária "${step.title}"?\nTodos os candidatos desta faixa etária também serão removidos.`)) return;
 
     // Remover do Supabase
     if (step.id && isSupabaseConfigured) {
@@ -630,7 +630,7 @@ export default function App() {
                   onClick={() => setConfigTab('categories')}
                   className={`pb-2 px-2 font-black uppercase text-sm transition-colors ${configTab === 'categories' ? 'border-b-4 border-zinc-800 text-zinc-900' : 'text-zinc-400'}`}
                 >
-                  Categorias
+                  Faixas Etárias
                 </button>
                 <button
                   onClick={() => {
@@ -838,19 +838,19 @@ export default function App() {
               ) : configTab === 'categories' ? (
                 <div className="flex-1 flex flex-col">
                   <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-black text-zinc-900 uppercase">Categorias Ativas</h2>
+                    <h2 className="text-xl font-black text-zinc-900 uppercase">Faixas Etárias Ativas</h2>
                     <button onClick={addCategory} className="bg-zinc-800 text-white px-4 py-2 text-xs font-bold uppercase hover:bg-zinc-700 transition-colors shadow-sm">
-                      Nova Categoria
+                      Nova Faixa Etária
                     </button>
                   </div>
-                  <p className="text-xs text-zinc-500 font-bold uppercase mb-4">Selecione as categorias que aparecerão na votação:</p>
+                  <p className="text-xs text-zinc-500 font-bold uppercase mb-4">Selecione as faixas etárias que aparecerão na votação:</p>
                   <div className="space-y-2 flex-1">
                     {voteSteps.map((step, index) => (
                       <div key={index} className="flex flex-col bg-white border-2 border-zinc-300 transition-colors">
                         {editingCategoryIndex === index ? (
                           <div className="p-3 space-y-3 bg-zinc-50 border-b-2 border-zinc-200">
                             <div>
-                              <label className="block text-xs font-bold text-zinc-500 uppercase">Nome da Categoria</label>
+                              <label className="block text-xs font-bold text-zinc-500 uppercase">Nome da Faixa Etária</label>
                               <input
                                 type="text"
                                 value={editCategoryData.title}
@@ -888,7 +888,7 @@ export default function App() {
                                     if (enabledCategories.length > 1) {
                                       setEnabledCategories(enabledCategories.filter(c => c !== step.title));
                                     } else {
-                                      alert("Pelo menos uma categoria deve estar ativa.");
+                                      alert("Pelo menos uma faixa etária deve estar ativa.");
                                     }
                                   } else {
                                     setEnabledCategories([...enabledCategories, step.title]);
@@ -906,14 +906,14 @@ export default function App() {
                               <button
                                 onClick={() => handleEditCategory(index)}
                                 className="text-zinc-400 hover:text-zinc-800 p-2 rounded transition-colors"
-                                title="Editar Categoria"
+                                title="Editar Faixa Etária"
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
                               <button
                                 onClick={() => removeCategory(index)}
                                 className="text-zinc-400 hover:text-red-600 p-2 rounded transition-colors"
-                                title="Excluir Categoria"
+                                title="Excluir Faixa Etária"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </button>
@@ -1021,7 +1021,7 @@ export default function App() {
                     );
                   })()}
 
-                  {/* Por categoria */}
+                  {/* Por faixa etária */}
                   <div className="flex-1 overflow-y-auto space-y-3 pr-2">
                     {voteSteps.map(step => {
                       const catCandidateVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
