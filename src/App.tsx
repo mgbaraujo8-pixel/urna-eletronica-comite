@@ -960,19 +960,39 @@ export default function App() {
                 <div className="flex-1 flex flex-col">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-black text-zinc-900 uppercase">Boletim de Urna</h2>
-                    <button
-                      onClick={async () => {
-                        const totalGeral = voteSteps.reduce((sum, s) => sum + s.candidates.reduce((cs, c) => cs + (c.votes || 0), 0), 0);
-                        const whiteVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
-                        const nullVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm('Tem certeza que deseja ZERAR toda a apuração de votos?\nEssa ação apagará todos os votos computados DEFINITIVAMENTE.')) return;
+                          if (isSupabaseConfigured) {
+                            try {
+                              await supabase.from('candidates').update({ votes: 0 }).neq('id', '00000000-0000-0000-0000-000000000000');
+                              await supabase.from('vote_logs').delete().neq('id', 0);
+                              setVoteLogs([]);
+                              await loadDataFromSupabase();
+                              alert('Todos os votos foram zerados com sucesso!');
+                            } catch (err: any) {
+                              alert('Erro ao zerar votos: ' + err.message);
+                            }
+                          }
+                        }}
+                        className="flex items-center gap-2 bg-red-100 text-red-700 px-4 py-2 text-xs font-bold uppercase hover:bg-red-200 transition-colors shadow-sm"
+                      >
+                        <Trash2 className="w-4 h-4" /> Zerar Apuração
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const totalGeral = voteSteps.reduce((sum, s) => sum + s.candidates.reduce((cs, c) => cs + (c.votes || 0), 0), 0);
+                          const whiteVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
+                          const nullVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
 
-                        let sessionData = null;
-                        if (isSupabaseConfigured) {
-                          const { data } = await supabase.from('urna_session').select('*').order('created_at', { ascending: false }).limit(1);
-                          if (data && data.length > 0) sessionData = data[0];
-                        }
+                          let sessionData = null;
+                          if (isSupabaseConfigured) {
+                            const { data } = await supabase.from('urna_session').select('*').order('created_at', { ascending: false }).limit(1);
+                            if (data && data.length > 0) sessionData = data[0];
+                          }
 
-                        let html = `<html><head><title>Boletim de Urna</title><style>
+                          let html = `<html><head><title>Boletim de Urna</title><style>
                           body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; }
                           h1 { text-align: center; font-size: 18px; border-bottom: 2px solid #000; padding-bottom: 8px; }
                           h2 { font-size: 14px; margin-top: 16px; border-bottom: 1px dashed #999; padding-bottom: 4px; }
@@ -983,49 +1003,50 @@ export default function App() {
                           .meta-info { font-size: 11px; margin-bottom: 4px; display: flex; justify-content: space-between; font-weight: bold; }
                           @media print { body { padding: 0; } }
                         </style></head><body>`;
-                        html += `<h1>BOLETIM DE URNA</h1>`;
+                          html += `<h1>BOLETIM DE URNA</h1>`;
 
-                        if (sessionData && sessionData.opened_at) {
-                          html += `<div class="meta-info"><span>ABERTURA:</span><span>${new Date(sessionData.opened_at).toLocaleString('pt-BR')}</span></div>`;
-                        }
-                        if (sessionData && sessionData.closed_at) {
-                          html += `<div class="meta-info"><span>FECHAMENTO:</span><span>${new Date(sessionData.closed_at).toLocaleString('pt-BR')}</span></div>`;
-                        }
-                        html += `<div class="meta-info" style="color:#666; border-bottom: 1px dashed #ccc; padding-bottom: 8px;"><span>EMITIDO:</span><span>${new Date().toLocaleString('pt-BR')}</span></div>`;
+                          if (sessionData && sessionData.opened_at) {
+                            html += `<div class="meta-info"><span>ABERTURA:</span><span>${new Date(sessionData.opened_at).toLocaleString('pt-BR')}</span></div>`;
+                          }
+                          if (sessionData && sessionData.closed_at) {
+                            html += `<div class="meta-info"><span>FECHAMENTO:</span><span>${new Date(sessionData.closed_at).toLocaleString('pt-BR')}</span></div>`;
+                          }
+                          html += `<div class="meta-info" style="color:#666; border-bottom: 1px dashed #ccc; padding-bottom: 8px;"><span>EMITIDO:</span><span>${new Date().toLocaleString('pt-BR')}</span></div>`;
 
 
-                        voteSteps.forEach(step => {
-                          const catVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
-                          const wv = step.id ? whiteVotes(step.id) : 0;
-                          const nv = step.id ? nullVotes(step.id) : 0;
-                          const totalCat = catVotes + wv + nv;
-                          html += `<h2>${step.title}</h2>`;
-                          step.candidates.filter(c => !c.suspended).forEach(c => {
-                            html += `<div class="row"><span>${c.number} - ${c.name}</span><span>${c.votes || 0}</span></div>`;
+                          voteSteps.forEach(step => {
+                            const catVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
+                            const wv = step.id ? whiteVotes(step.id) : 0;
+                            const nv = step.id ? nullVotes(step.id) : 0;
+                            const totalCat = catVotes + wv + nv;
+                            html += `<h2>${step.title}</h2>`;
+                            step.candidates.filter(c => !c.suspended).forEach(c => {
+                              html += `<div class="row"><span>${c.number} - ${c.name}</span><span>${c.votes || 0}</span></div>`;
+                            });
+                            html += `<div class="row"><span>VOTOS EM BRANCO</span><span>${wv}</span></div>`;
+                            html += `<div class="row"><span>VOTOS NULOS</span><span>${nv}</span></div>`;
+                            html += `<div class="row total"><span>TOTAL ${step.title}</span><span>${totalCat}</span></div>`;
                           });
-                          html += `<div class="row"><span>VOTOS EM BRANCO</span><span>${wv}</span></div>`;
-                          html += `<div class="row"><span>VOTOS NULOS</span><span>${nv}</span></div>`;
-                          html += `<div class="row total"><span>TOTAL ${step.title}</span><span>${totalCat}</span></div>`;
-                        });
 
-                        const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
-                        const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
-                        html += `<div class="grand-total">TOTAL GERAL DE VOTOS: ${totalGeral + totalWhite + totalNull}</div>`;
-                        html += `<div class="footer">COMITÊ MAIS INFÂNCIA<br/>Urna Eletrônica</div>`;
-                        html += `</body></html>`;
+                          const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
+                          const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
+                          html += `<div class="grand-total">TOTAL GERAL DE VOTOS: ${totalGeral + totalWhite + totalNull}</div>`;
+                          html += `<div class="footer">COMITÊ MAIS INFÂNCIA<br/>Urna Eletrônica</div>`;
+                          html += `</body></html>`;
 
-                        const printWindow = window.open('', '_blank');
-                        if (printWindow) {
-                          printWindow.document.write(html);
-                          printWindow.document.close();
-                          printWindow.focus();
-                          setTimeout(() => printWindow.print(), 500);
-                        }
-                      }}
-                      className="flex items-center gap-2 bg-zinc-800 text-white px-4 py-2 text-xs font-bold uppercase hover:bg-zinc-700 transition-colors shadow-sm"
-                    >
-                      <Printer className="w-4 h-4" /> Imprimir
-                    </button>
+                          const printWindow = window.open('', '_blank');
+                          if (printWindow) {
+                            printWindow.document.write(html);
+                            printWindow.document.close();
+                            printWindow.focus();
+                            setTimeout(() => printWindow.print(), 500);
+                          }
+                        }}
+                        className="flex items-center gap-2 bg-zinc-800 text-white px-4 py-2 text-xs font-bold uppercase hover:bg-zinc-700 transition-colors shadow-sm"
+                      >
+                        <Printer className="w-4 h-4" /> Imprimir
+                      </button>
+                    </div>
                   </div>
 
                   {/* Resumo geral */}
