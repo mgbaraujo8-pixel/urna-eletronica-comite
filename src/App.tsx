@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, X, Pencil, Trash2, Ban } from 'lucide-react';
+import { Upload, X, Pencil, Trash2, Ban, Printer } from 'lucide-react';
 
 import { VOTE_STEPS, Candidate, VoteStep } from './constants';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
@@ -24,7 +24,8 @@ export default function App() {
   // Config states
   const [isConfigPromptOpen, setIsConfigPromptOpen] = useState(false);
   const [isConfigMode, setIsConfigMode] = useState(false);
-  const [configTab, setConfigTab] = useState<'candidates' | 'categories'>('candidates');
+  const [configTab, setConfigTab] = useState<'candidates' | 'categories' | 'boletim'>('candidates');
+  const [voteLogs, setVoteLogs] = useState<{ category_id: string; vote_type: string; count: number }[]>([]);
   const [isShowingNewCandidateForm, setIsShowingNewCandidateForm] = useState(false);
   const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
   const [editCategoryData, setEditCategoryData] = useState({ title: '', digits: 0 });
@@ -555,6 +556,30 @@ export default function App() {
                 >
                   Categorias
                 </button>
+                <button
+                  onClick={() => {
+                    setConfigTab('boletim');
+                    // Carregar logs de voto do Supabase
+                    if (isSupabaseConfigured) {
+                      supabase.from('vote_logs')
+                        .select('category_id, vote_type')
+                        .then(({ data }) => {
+                          if (data) {
+                            const counts: { [key: string]: { category_id: string; vote_type: string; count: number } } = {};
+                            data.forEach((log: any) => {
+                              const key = `${log.category_id}_${log.vote_type}`;
+                              if (!counts[key]) counts[key] = { category_id: log.category_id, vote_type: log.vote_type, count: 0 };
+                              counts[key].count++;
+                            });
+                            setVoteLogs(Object.values(counts));
+                          }
+                        });
+                    }
+                  }}
+                  className={`pb-2 px-2 font-black uppercase text-sm transition-colors ${configTab === 'boletim' ? 'border-b-4 border-zinc-800 text-zinc-900' : 'text-zinc-400'}`}
+                >
+                  Boletim de Urna
+                </button>
 
 
               </div>
@@ -734,7 +759,7 @@ export default function App() {
                     </form>
                   </>
                 )
-              ) : (
+              ) : configTab === 'categories' ? (
                 <div className="flex-1 flex flex-col">
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-black text-zinc-900 uppercase">Categorias Ativas</h2>
@@ -827,7 +852,129 @@ export default function App() {
                     <p className="text-[10px] text-zinc-800 font-black uppercase">Alterações salvas automaticamente</p>
                   </div>
                 </div>
-              )}
+              ) : configTab === 'boletim' ? (
+                <div className="flex-1 flex flex-col">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-black text-zinc-900 uppercase">Boletim de Urna</h2>
+                    <button
+                      onClick={() => {
+                        const totalGeral = voteSteps.reduce((sum, s) => sum + s.candidates.reduce((cs, c) => cs + (c.votes || 0), 0), 0);
+                        const whiteVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
+                        const nullVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
+
+                        let html = `<html><head><title>Boletim de Urna</title><style>
+                          body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; }
+                          h1 { text-align: center; font-size: 18px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+                          h2 { font-size: 14px; margin-top: 16px; border-bottom: 1px dashed #999; padding-bottom: 4px; }
+                          .row { display: flex; justify-content: space-between; padding: 2px 0; font-size: 12px; }
+                          .total { font-weight: bold; border-top: 1px solid #000; margin-top: 4px; padding-top: 4px; }
+                          .grand-total { font-size: 16px; font-weight: bold; text-align: center; border-top: 2px solid #000; margin-top: 12px; padding-top: 8px; }
+                          .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #666; }
+                          @media print { body { padding: 0; } }
+                        </style></head><body>`;
+                        html += `<h1>BOLETIM DE URNA</h1>`;
+                        html += `<p style="text-align:center;font-size:11px;color:#666;">Emitido em: ${new Date().toLocaleString('pt-BR')}</p>`;
+
+                        voteSteps.forEach(step => {
+                          const catVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
+                          const wv = step.id ? whiteVotes(step.id) : 0;
+                          const nv = step.id ? nullVotes(step.id) : 0;
+                          const totalCat = catVotes + wv + nv;
+                          html += `<h2>${step.title}</h2>`;
+                          step.candidates.filter(c => !c.suspended).forEach(c => {
+                            html += `<div class="row"><span>${c.number} - ${c.name}</span><span>${c.votes || 0}</span></div>`;
+                          });
+                          html += `<div class="row"><span>VOTOS EM BRANCO</span><span>${wv}</span></div>`;
+                          html += `<div class="row"><span>VOTOS NULOS</span><span>${nv}</span></div>`;
+                          html += `<div class="row total"><span>TOTAL ${step.title}</span><span>${totalCat}</span></div>`;
+                        });
+
+                        const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
+                        const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
+                        html += `<div class="grand-total">TOTAL GERAL DE VOTOS: ${totalGeral + totalWhite + totalNull}</div>`;
+                        html += `<div class="footer">JUSTIÇA ELEITORAL<br/>Urna Eletrônica - Comitê</div>`;
+                        html += `</body></html>`;
+
+                        const printWindow = window.open('', '_blank');
+                        if (printWindow) {
+                          printWindow.document.write(html);
+                          printWindow.document.close();
+                          printWindow.focus();
+                          setTimeout(() => printWindow.print(), 500);
+                        }
+                      }}
+                      className="flex items-center gap-2 bg-zinc-800 text-white px-4 py-2 text-xs font-bold uppercase hover:bg-zinc-700 transition-colors shadow-sm"
+                    >
+                      <Printer className="w-4 h-4" /> Imprimir
+                    </button>
+                  </div>
+
+                  {/* Resumo geral */}
+                  {(() => {
+                    const totalCandidateVotes = voteSteps.reduce((sum, s) => sum + s.candidates.reduce((cs, c) => cs + (c.votes || 0), 0), 0);
+                    const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
+                    const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
+                    const totalGeral = totalCandidateVotes + totalWhite + totalNull;
+                    return (
+                      <div className="bg-white border-2 border-zinc-300 p-4 mb-4">
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-zinc-800 uppercase text-sm">Total Geral de Votos</span>
+                          <span className="font-black text-3xl text-emerald-600">{totalGeral}</span>
+                        </div>
+                        <div className="flex gap-4 mt-2">
+                          <span className="text-[10px] font-bold text-zinc-500 uppercase">Nominais: {totalCandidateVotes}</span>
+                          <span className="text-[10px] font-bold text-zinc-500 uppercase">Brancos: {totalWhite}</span>
+                          <span className="text-[10px] font-bold text-zinc-500 uppercase">Nulos: {totalNull}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Por categoria */}
+                  <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                    {voteSteps.map(step => {
+                      const catCandidateVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
+                      const whiteVotes = step.id ? voteLogs.filter(l => l.category_id === step.id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0) : 0;
+                      const nullVotes = step.id ? voteLogs.filter(l => l.category_id === step.id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0) : 0;
+                      const totalCat = catCandidateVotes + whiteVotes + nullVotes;
+                      const maxVotes = Math.max(...step.candidates.map(c => c.votes || 0), 1);
+
+                      return (
+                        <div key={step.title} className="bg-white border-2 border-zinc-300 p-4">
+                          <div className="flex justify-between items-center mb-3 border-b-2 border-zinc-100 pb-2">
+                            <h3 className="font-black text-zinc-800 uppercase text-sm">{step.title}</h3>
+                            <span className="font-black text-lg text-emerald-600">{totalCat} <span className="text-[10px] text-zinc-500 font-bold">votos</span></span>
+                          </div>
+                          <div className="space-y-2">
+                            {step.candidates.filter(c => !c.suspended).map(c => (
+                              <div key={c.number} className="flex items-center gap-3">
+                                <span className="text-[10px] font-bold text-zinc-500 w-10 text-right">{c.number}</span>
+                                <div className="flex-1">
+                                  <div className="flex justify-between items-baseline">
+                                    <span className="text-xs font-bold text-zinc-800 uppercase truncate">{c.name}</span>
+                                    <span className="font-black text-emerald-600 text-sm ml-2">{c.votes || 0}</span>
+                                  </div>
+                                  <div className="w-full bg-zinc-200 h-2 mt-1 rounded-full overflow-hidden">
+                                    <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${((c.votes || 0) / maxVotes) * 100}%` }}></div>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                            <div className="flex gap-4 mt-2 pt-2 border-t border-zinc-100">
+                              <span className="text-[10px] font-bold text-zinc-400 uppercase">Brancos: {whiteVotes}</span>
+                              <span className="text-[10px] font-bold text-zinc-400 uppercase">Nulos: {nullVotes}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="pt-4 flex justify-between items-center mt-auto border-t border-zinc-300">
+                    <p className="text-[10px] text-zinc-400 font-bold uppercase">Aperte CORRIGE para sair</p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="p-6 flex-1 flex flex-col">
