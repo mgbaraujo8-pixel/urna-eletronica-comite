@@ -20,6 +20,8 @@ export default function MesaReceptora() {
     const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
     const [recentVoters, setRecentVoters] = useState<Voter[]>([]);
     const [currentVoter, setCurrentVoter] = useState<Voter | null>(null);
+    const [editingVoter, setEditingVoter] = useState<Voter | null>(null);
+    const [editForm, setEditForm] = useState({ name: '', age: '', birth_date: '', activity: '' });
 
     // Carregar lista de eleitores recentes
     const loadVoters = async () => {
@@ -132,6 +134,28 @@ export default function MesaReceptora() {
         await loadVoters();
     };
 
+    const startEditVoter = (voter: Voter) => {
+        setEditingVoter(voter);
+        setEditForm({
+            name: voter.name || '',
+            age: voter.age?.toString() || '',
+            birth_date: voter.birth_date || '',
+            activity: voter.activity || '',
+        });
+    };
+
+    const saveEditVoter = async () => {
+        if (!editingVoter || !editForm.name.trim()) return;
+        await supabase.from('voter_queue').update({
+            name: editForm.name.trim().toUpperCase(),
+            age: editForm.age ? parseInt(editForm.age) : null,
+            birth_date: editForm.birth_date || null,
+            activity: editForm.activity.trim().toUpperCase() || null,
+        }).eq('id', editingVoter.id);
+        setEditingVoter(null);
+        await loadVoters();
+    };
+
     const statusLabel = (status: string) => {
         switch (status) {
             case 'pending': return '⏳ Aguardando';
@@ -232,8 +256,8 @@ export default function MesaReceptora() {
 
                         {message && (
                             <div className={`p-3 border-2 font-bold text-sm ${message.type === 'success' ? 'bg-green-50 border-green-300 text-green-800' :
-                                    message.type === 'warning' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' :
-                                        'bg-red-50 border-red-300 text-red-800'
+                                message.type === 'warning' ? 'bg-yellow-50 border-yellow-300 text-yellow-800' :
+                                    'bg-red-50 border-red-300 text-red-800'
                                 }`}>
                                 {message.text}
                             </div>
@@ -277,13 +301,23 @@ export default function MesaReceptora() {
                                     <span className={`px-2 py-1 text-[10px] font-black uppercase border rounded ${statusColor(voter.status)}`}>
                                         {statusLabel(voter.status)}
                                     </span>
-                                    {(voter.status === 'pending') && (
-                                        <button
-                                            onClick={() => cancelVoter(voter.id)}
-                                            className="text-[10px] font-bold text-red-500 hover:text-red-700 uppercase"
-                                        >
-                                            Cancelar
-                                        </button>
+                                    {(voter.status === 'pending' || voter.status === 'voting') && (
+                                        <div className="flex gap-2">
+                                            {voter.status === 'pending' && (
+                                                <button
+                                                    onClick={() => startEditVoter(voter)}
+                                                    className="bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
+                                                >
+                                                    ✏️ Editar
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={() => cancelVoter(voter.id)}
+                                                className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
+                                            >
+                                                ❌ Cancelar
+                                            </button>
+                                        </div>
                                     )}
                                 </div>
                             ))
@@ -291,6 +325,74 @@ export default function MesaReceptora() {
                     </div>
                 </div>
             </div>
+
+            {/* Modal de Edição */}
+            {editingVoter && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setEditingVoter(null)}>
+                    <div className="bg-white border-2 border-zinc-300 p-6 shadow-xl w-[420px] max-w-[90vw]" onClick={e => e.stopPropagation()}>
+                        <h2 className="text-lg font-black text-zinc-900 uppercase border-b-2 border-zinc-200 pb-2 mb-4">Editar Eleitor</h2>
+
+                        <div className="flex flex-col gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Nome Completo *</label>
+                                <input
+                                    type="text"
+                                    value={editForm.name}
+                                    onChange={e => setEditForm({ ...editForm, name: e.target.value })}
+                                    className="w-full border-2 border-zinc-300 p-3 font-bold uppercase text-black focus:border-zinc-800 outline-none text-sm"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Idade</label>
+                                    <input
+                                        type="number"
+                                        value={editForm.age}
+                                        onChange={e => setEditForm({ ...editForm, age: e.target.value })}
+                                        className="w-full border-2 border-zinc-300 p-3 font-bold text-black focus:border-zinc-800 outline-none text-sm"
+                                        min="1" max="150"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Data de Nascimento</label>
+                                    <input
+                                        type="date"
+                                        value={editForm.birth_date}
+                                        onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })}
+                                        className="w-full border-2 border-zinc-300 p-3 font-bold text-black focus:border-zinc-800 outline-none text-sm"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Atividade</label>
+                                <input
+                                    type="text"
+                                    value={editForm.activity}
+                                    onChange={e => setEditForm({ ...editForm, activity: e.target.value })}
+                                    className="w-full border-2 border-zinc-300 p-3 font-bold uppercase text-black focus:border-zinc-800 outline-none text-sm"
+                                />
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    onClick={saveEditVoter}
+                                    disabled={!editForm.name.trim()}
+                                    className="flex-1 bg-emerald-500 text-white px-4 py-3 font-black uppercase hover:bg-emerald-600 transition-colors shadow-md border-b-4 border-emerald-700 disabled:opacity-50"
+                                >
+                                    ✅ Salvar
+                                </button>
+                                <button
+                                    onClick={() => setEditingVoter(null)}
+                                    className="flex-1 bg-zinc-300 text-zinc-800 px-4 py-3 font-black uppercase hover:bg-zinc-400 transition-colors shadow-md border-b-4 border-zinc-400"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
