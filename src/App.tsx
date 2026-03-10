@@ -32,6 +32,11 @@ export default function App() {
   const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
   const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: '', photo: '', age: '', activity: '' });
 
+  // Voter queue states (Mesa Receptora integration)
+  const [isWaitingForVoter, setIsWaitingForVoter] = useState(true);
+  const [currentVoterId, setCurrentVoterId] = useState<string | null>(null);
+  const [currentVoterName, setCurrentVoterName] = useState<string>('');
+
   // === SUPABASE: Carregar dados ===
 
   const loadDataFromSupabase = async () => {
@@ -466,6 +471,14 @@ export default function App() {
     setIsFinished(false);
     setRestartCountdown(10);
     handleCorrige();
+
+    // Marcar eleitor como votou e voltar para aguardando
+    if (currentVoterId && isSupabaseConfigured) {
+      supabase.from('voter_queue').update({ status: 'voted' }).eq('id', currentVoterId).then();
+    }
+    setCurrentVoterId(null);
+    setCurrentVoterName('');
+    setIsWaitingForVoter(true);
   };
 
   // Auto-reinício após 10 segundos na tela FIM
@@ -489,12 +502,75 @@ export default function App() {
     return () => clearInterval(interval);
   }, [isFinished]);
 
+  // Polling para verificar se há eleitor liberado pela mesa
+  useEffect(() => {
+    if (!isWaitingForVoter || !isSupabaseConfigured || isLoading) return;
+
+    const checkQueue = async () => {
+      const { data } = await supabase
+        .from('voter_queue')
+        .select('*')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+      if (data && data.length > 0) {
+        const voter = data[0];
+        // Marcar como votando
+        await supabase.from('voter_queue').update({ status: 'voting' }).eq('id', voter.id);
+        setCurrentVoterId(voter.id);
+        setCurrentVoterName(voter.name);
+        setIsWaitingForVoter(false);
+      }
+    };
+
+    checkQueue();
+    const interval = setInterval(checkQueue, 3000);
+    return () => clearInterval(interval);
+  }, [isWaitingForVoter, isSupabaseConfigured, isLoading]);
+
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-zinc-950">
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-zinc-950">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-zinc-400 border-t-white rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-zinc-400 font-bold uppercase text-sm tracking-widest">Carregando Urna...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Tela de aguardando liberação (urna bloqueada)
+  const [waitingTaps, setWaitingTaps] = useState(0);
+  const waitingTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (isWaitingForVoter && !isConfigMode && !isConfigPromptOpen) {
+    return (
+      <div className="h-screen w-screen bg-zinc-300 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-zinc-400 border-t-zinc-800 rounded-full animate-spin mx-auto mb-6"></div>
+          <h1
+            className="text-3xl font-black text-zinc-800 uppercase tracking-wider mb-2 select-none cursor-default"
+            onClick={() => {
+              const newTaps = waitingTaps + 1;
+              setWaitingTaps(newTaps);
+              if (waitingTapTimer.current) clearTimeout(waitingTapTimer.current);
+              waitingTapTimer.current = setTimeout(() => setWaitingTaps(0), 3000);
+              if (newTaps >= 5) {
+                setWaitingTaps(0);
+                setIsWaitingForVoter(false);
+                setIsConfigPromptOpen(true);
+              }
+            }}
+          >
+            Aguardando Liberação
+          </h1>
+          <p className="text-sm font-bold text-zinc-500 uppercase">
+            A mesa receptora deve liberar o próximo eleitor
+          </p>
+          <p className="text-[10px] font-bold text-zinc-400 uppercase mt-8">
+            Acesse a mesa em: <span className="text-zinc-600">{window.location.origin}/mesa</span>
+          </p>
         </div>
       </div>
     );
