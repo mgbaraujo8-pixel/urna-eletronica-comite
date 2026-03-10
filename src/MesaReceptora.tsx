@@ -156,6 +156,44 @@ export default function MesaReceptora() {
         await loadVoters();
     };
 
+    const clearList = async () => {
+        if (!window.confirm('Tem certeza que deseja ZERAR toda a fila de votação?\nEssa ação não pode ser desfeita.')) return;
+        await supabase.from('voter_queue').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await loadVoters();
+    };
+
+    const printList = () => {
+        const voted = recentVoters.filter(v => v.status === 'voted');
+        let html = `<html><head><title>Lista de Eleitores</title><style>
+            body { font-family: 'Courier New', monospace; padding: 20px; max-width: 500px; margin: 0 auto; }
+            h1 { text-align: center; font-size: 18px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            th { text-align: left; font-size: 11px; border-bottom: 2px solid #000; padding: 4px 2px; }
+            td { font-size: 11px; padding: 3px 2px; border-bottom: 1px dashed #ccc; }
+            .total { font-weight: bold; font-size: 14px; text-align: center; border-top: 2px solid #000; margin-top: 12px; padding-top: 8px; }
+            .footer { text-align: center; margin-top: 16px; font-size: 10px; color: #666; }
+            @media print { body { padding: 0; } }
+        </style></head><body>`;
+        html += `<h1>LISTA DE ELEITORES</h1>`;
+        html += `<p style="text-align:center;font-size:11px;color:#666;">Emitido em: ${new Date().toLocaleString('pt-BR')}</p>`;
+        html += `<table><thead><tr><th>#</th><th>NOME</th><th>IDADE</th><th>ATIVIDADE</th></tr></thead><tbody>`;
+        voted.forEach((v, i) => {
+            html += `<tr><td>${i + 1}</td><td>${v.name}</td><td>${v.age || '-'}</td><td>${v.activity || '-'}</td></tr>`;
+        });
+        html += `</tbody></table>`;
+        html += `<div class="total">TOTAL DE ELEITORES: ${voted.length}</div>`;
+        html += `<div class="footer">JUSTIÇA ELEITORAL<br/>Mesa Receptora - Urna Eletrônica</div>`;
+        html += `</body></html>`;
+
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(html);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => printWindow.print(), 500);
+        }
+    };
+
     const statusLabel = (status: string) => {
         switch (status) {
             case 'pending': return '⏳ Aguardando';
@@ -277,7 +315,20 @@ export default function MesaReceptora() {
                 <div className="flex-1 flex flex-col overflow-hidden">
                     <div className="flex justify-between items-center mb-3">
                         <h2 className="text-sm font-black text-zinc-800 uppercase">Fila de Votação</h2>
-                        <span className="text-[10px] font-bold text-zinc-500 uppercase">Atualiza automaticamente</span>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={printList}
+                                className="bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
+                            >
+                                🖨️ Imprimir
+                            </button>
+                            <button
+                                onClick={clearList}
+                                className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
+                            >
+                                🗑️ Zerar Lista
+                            </button>
+                        </div>
                     </div>
                     <div className="flex-1 overflow-y-auto space-y-2">
                         {recentVoters.length === 0 ? (
@@ -287,8 +338,8 @@ export default function MesaReceptora() {
                         ) : (
                             recentVoters.map(voter => (
                                 <div key={voter.id} className={`bg-white border-2 p-3 flex items-center gap-4 ${voter.status === 'voting' ? 'border-blue-400 bg-blue-50' :
-                                        voter.status === 'pending' ? 'border-yellow-400 bg-yellow-50' :
-                                            'border-zinc-200'
+                                    voter.status === 'pending' ? 'border-yellow-400 bg-yellow-50' :
+                                        'border-zinc-200'
                                     }`}>
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-zinc-900 uppercase text-sm truncate">{voter.name}</p>
