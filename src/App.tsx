@@ -933,10 +933,16 @@ export default function App() {
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-black text-zinc-900 uppercase">Boletim de Urna</h2>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         const totalGeral = voteSteps.reduce((sum, s) => sum + s.candidates.reduce((cs, c) => cs + (c.votes || 0), 0), 0);
                         const whiteVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
                         const nullVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
+
+                        let sessionData = null;
+                        if (isSupabaseConfigured) {
+                          const { data } = await supabase.from('urna_session').select('*').order('created_at', { ascending: false }).limit(1);
+                          if (data && data.length > 0) sessionData = data[0];
+                        }
 
                         let html = `<html><head><title>Boletim de Urna</title><style>
                           body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; }
@@ -946,10 +952,19 @@ export default function App() {
                           .total { font-weight: bold; border-top: 1px solid #000; margin-top: 4px; padding-top: 4px; }
                           .grand-total { font-size: 16px; font-weight: bold; text-align: center; border-top: 2px solid #000; margin-top: 12px; padding-top: 8px; }
                           .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #666; }
+                          .meta-info { font-size: 11px; margin-bottom: 4px; display: flex; justify-content: space-between; font-weight: bold; }
                           @media print { body { padding: 0; } }
                         </style></head><body>`;
                         html += `<h1>BOLETIM DE URNA</h1>`;
-                        html += `<p style="text-align:center;font-size:11px;color:#666;">Emitido em: ${new Date().toLocaleString('pt-BR')}</p>`;
+
+                        if (sessionData && sessionData.opened_at) {
+                          html += `<div class="meta-info"><span>ABERTURA:</span><span>${new Date(sessionData.opened_at).toLocaleString('pt-BR')}</span></div>`;
+                        }
+                        if (sessionData && sessionData.closed_at) {
+                          html += `<div class="meta-info"><span>FECHAMENTO:</span><span>${new Date(sessionData.closed_at).toLocaleString('pt-BR')}</span></div>`;
+                        }
+                        html += `<div class="meta-info" style="color:#666; border-bottom: 1px dashed #ccc; padding-bottom: 8px;"><span>EMITIDO:</span><span>${new Date().toLocaleString('pt-BR')}</span></div>`;
+
 
                         voteSteps.forEach(step => {
                           const catVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);

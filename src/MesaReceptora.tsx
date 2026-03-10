@@ -22,6 +22,9 @@ export default function MesaReceptora() {
     const [currentVoter, setCurrentVoter] = useState<Voter | null>(null);
     const [editingVoter, setEditingVoter] = useState<Voter | null>(null);
     const [editForm, setEditForm] = useState({ name: '', age: '', birth_date: '', activity: '' });
+    const [sessionId, setSessionId] = useState<string | null>(null);
+    const [openedAt, setOpenedAt] = useState<string | null>(null);
+    const [closedAt, setClosedAt] = useState<string | null>(null);
 
     // Carregar lista de eleitores recentes
     const loadVoters = async () => {
@@ -49,9 +52,47 @@ export default function MesaReceptora() {
 
     useEffect(() => {
         loadVoters();
+        loadSession();
         const interval = setInterval(loadVoters, 3000);
         return () => clearInterval(interval);
     }, []);
+
+    const loadSession = async () => {
+        if (!isSupabaseConfigured) return;
+        const { data } = await supabase
+            .from('urna_session')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1);
+        if (data && data.length > 0) {
+            setSessionId(data[0].id);
+            setOpenedAt(data[0].opened_at);
+            setClosedAt(data[0].closed_at);
+        }
+    };
+
+    const openUrna = async () => {
+        if (!isSupabaseConfigured) return;
+        const now = new Date().toISOString();
+        const { data } = await supabase.from('urna_session')
+            .insert({ opened_at: now })
+            .select().single();
+        if (data) {
+            setSessionId(data.id);
+            setOpenedAt(data.opened_at);
+            setClosedAt(null);
+        }
+    };
+
+    const closeUrna = async () => {
+        if (!sessionId || closedAt) return;
+        if (!window.confirm('Tem certeza que deseja FECHAR a urna?\nApós o fechamento, nenhum novo voto será registrado.')) return;
+        const now = new Date().toISOString();
+        await supabase.from('urna_session')
+            .update({ closed_at: now })
+            .eq('id', sessionId);
+        setClosedAt(now);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -176,6 +217,8 @@ export default function MesaReceptora() {
         </style></head><body>`;
         html += `<h1>LISTA DE ELEITORES</h1>`;
         html += `<p style="text-align:center;font-size:11px;color:#666;">Emitido em: ${new Date().toLocaleString('pt-BR')}</p>`;
+        if (openedAt) html += `<p style="font-size:11px;"><strong>ABERTURA DA URNA:</strong> ${new Date(openedAt).toLocaleString('pt-BR')}</p>`;
+        if (closedAt) html += `<p style="font-size:11px;"><strong>FECHAMENTO DA URNA:</strong> ${new Date(closedAt).toLocaleString('pt-BR')}</p>`;
         html += `<table><thead><tr><th>#</th><th>NOME</th><th>IDADE</th><th>ATIVIDADE</th></tr></thead><tbody>`;
         voted.forEach((v, i) => {
             html += `<tr><td>${i + 1}</td><td>${v.name}</td><td>${v.age || '-'}</td><td>${v.activity || '-'}</td></tr>`;
@@ -219,19 +262,46 @@ export default function MesaReceptora() {
     return (
         <div className="h-screen w-screen bg-zinc-100 flex flex-col overflow-hidden">
             {/* Header */}
-            <div className="bg-zinc-800 text-white px-6 py-4 flex items-center justify-between shadow-lg">
+            <div className="bg-zinc-800 text-white px-6 py-3 flex items-center justify-between shadow-lg">
                 <div>
                     <h1 className="text-xl font-black uppercase tracking-wider">Mesa Receptora</h1>
-                    <p className="text-xs text-zinc-400 font-bold uppercase">Identificação do Eleitor</p>
+                    <p className="text-xs text-zinc-400 font-bold uppercase">Comitê Mais Infância</p>
                 </div>
                 <div className="flex items-center gap-4">
+                    {/* Sessão da Urna */}
+                    {!openedAt ? (
+                        <button
+                            onClick={openUrna}
+                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 text-xs font-black uppercase rounded border-b-2 border-emerald-700 transition-colors"
+                        >
+                            🔓 Abrir Urna
+                        </button>
+                    ) : (
+                        <div className="flex items-center gap-3">
+                            <div className="text-right text-[10px] font-bold uppercase leading-tight">
+                                <p className="text-emerald-400">Aberta: {new Date(openedAt).toLocaleString('pt-BR')}</p>
+                                {closedAt ? (
+                                    <p className="text-red-400">Fechada: {new Date(closedAt).toLocaleString('pt-BR')}</p>
+                                ) : (
+                                    <p className="text-yellow-400">Em andamento</p>
+                                )}
+                            </div>
+                            {!closedAt && (
+                                <button
+                                    onClick={closeUrna}
+                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 text-xs font-black uppercase rounded border-b-2 border-red-700 transition-colors"
+                                >
+                                    🔒 Fechar Urna
+                                </button>
+                            )}
+                        </div>
+                    )}
                     <div className="text-right">
                         <p className="text-[10px] text-zinc-400 font-bold uppercase">Eleitores</p>
                         <p className="text-2xl font-black text-emerald-400">{votedCount}</p>
                     </div>
                     {currentVoter && (
-                        <div className={`px-3 py-1 rounded text-xs font-black uppercase border ${currentVoter.status === 'pending' ? 'bg-yellow-500 border-yellow-600 text-yellow-900' : 'bg-blue-500 border-blue-600 text-white'
-                            }`}>
+                        <div className={`px-3 py-1 rounded text-xs font-black uppercase border ${currentVoter.status === 'pending' ? 'bg-yellow-500 border-yellow-600 text-yellow-900' : 'bg-blue-500 border-blue-600 text-white'}`}>
                             {currentVoter.status === 'pending' ? '⏳ Aguardando na Urna' : '🗳️ Votando'}
                         </div>
                     )}
