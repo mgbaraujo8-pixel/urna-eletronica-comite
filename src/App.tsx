@@ -436,10 +436,14 @@ export default function App() {
 
     const catId = voteSteps[index].id;
     if (catId) {
-      await supabase.from('categories').update({
+      const { error } = await supabase.from('categories').update({
         title: editCategoryData.title,
         digits: editCategoryData.digits,
       }).eq('id', catId);
+
+      if (error) {
+        alert('Erro ao salvar faixa etária: ' + error.message);
+      }
     }
   };
 
@@ -911,15 +915,21 @@ export default function App() {
                               <input
                                 type="checkbox"
                                 checked={enabledCategories.includes(step.title)}
-                                onChange={() => {
+                                onChange={async () => {
                                   if (enabledCategories.includes(step.title)) {
                                     if (enabledCategories.length > 1) {
                                       setEnabledCategories(enabledCategories.filter(c => c !== step.title));
+                                      if (step.id && isSupabaseConfigured) {
+                                        await supabase.from('categories').update({ enabled: false }).eq('id', step.id);
+                                      }
                                     } else {
                                       alert("Pelo menos uma faixa etária deve estar ativa.");
                                     }
                                   } else {
                                     setEnabledCategories([...enabledCategories, step.title]);
+                                    if (step.id && isSupabaseConfigured) {
+                                      await supabase.from('categories').update({ enabled: true }).eq('id', step.id);
+                                    }
                                   }
                                 }}
                                 className="w-5 h-5 accent-zinc-800"
