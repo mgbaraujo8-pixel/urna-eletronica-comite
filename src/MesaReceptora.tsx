@@ -182,7 +182,7 @@ export default function MesaReceptora() {
         });
         html += `</tbody></table>`;
         html += `<div class="total">TOTAL DE ELEITORES: ${voted.length}</div>`;
-        html += `<div class="footer">JUSTIÇA ELEITORAL<br/>Mesa Receptora - Urna Eletrônica</div>`;
+        html += `<div class="footer">COMITÊ MAIS INFÂNCIA<br/>Mesa Receptora - Urna Eletrônica</div>`;
         html += `</body></html>`;
 
         const printWindow = window.open('', '_blank');

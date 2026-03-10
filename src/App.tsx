@@ -968,7 +968,7 @@ export default function App() {
                         const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
                         const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
                         html += `<div class="grand-total">TOTAL GERAL DE VOTOS: ${totalGeral + totalWhite + totalNull}</div>`;
-                        html += `<div class="footer">JUSTIÇA ELEITORAL<br/>Urna Eletrônica - Comitê</div>`;
+                        html += `<div class="footer">COMITÊ MAIS INFÂNCIA<br/>Urna Eletrônica</div>`;
                         html += `</body></html>`;
 
                         const printWindow = window.open('', '_blank');
@@ -1167,7 +1167,7 @@ export default function App() {
 
           <div className="mt-auto flex justify-center">
             <div className="text-zinc-500 font-black text-xl tracking-widest opacity-20 select-none">
-              JUSTIÇA ELEITORAL
+              COMITÊ MAIS INFÂNCIA
             </div>
           </div>
         </div>
