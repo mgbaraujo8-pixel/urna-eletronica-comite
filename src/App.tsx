@@ -36,6 +36,8 @@ export default function App() {
   const [isWaitingForVoter, setIsWaitingForVoter] = useState(true);
   const [currentVoterId, setCurrentVoterId] = useState<string | null>(null);
   const [currentVoterName, setCurrentVoterName] = useState<string>('');
+  const [waitingTaps, setWaitingTaps] = useState(0);
+  const waitingTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // === SUPABASE: Carregar dados ===
 
@@ -541,8 +543,6 @@ export default function App() {
   }
 
   // Tela de aguardando liberação (urna bloqueada)
-  const [waitingTaps, setWaitingTaps] = useState(0);
-  const waitingTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   if (isWaitingForVoter && !isConfigMode && !isConfigPromptOpen) {
     return (
