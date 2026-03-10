@@ -25,7 +25,16 @@ export default function App() {
   const [isConfigPromptOpen, setIsConfigPromptOpen] = useState(false);
   const [isConfigMode, setIsConfigMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [configTab, setConfigTab] = useState<'candidates' | 'categories' | 'boletim'>('candidates');
+  const [configTab, setConfigTab] = useState<'candidates' | 'categories' | 'boletim' | 'filter'>('candidates');
+  const [localAllowedCategories, setLocalAllowedCategories] = useState<string[]>(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const item = localStorage.getItem('urna_allowed_categories');
+        return item ? JSON.parse(item) : [];
+      }
+    } catch { }
+    return [];
+  });
   const [voteLogs, setVoteLogs] = useState<{ category_id: string; vote_type: string; count: number }[]>([]);
   const [isShowingNewCandidateForm, setIsShowingNewCandidateForm] = useState(false);
   const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
@@ -528,10 +537,16 @@ export default function App() {
     if (!isWaitingForVoter || !isSupabaseConfigured || isLoading) return;
 
     const checkQueue = async () => {
-      const { data } = await supabase
+      let query = supabase
         .from('voter_queue')
         .select('*')
-        .eq('status', 'pending')
+        .eq('status', 'pending');
+
+      if (localAllowedCategories.length > 0) {
+        query = query.in('faixa_etaria', localAllowedCategories);
+      }
+
+      const { data } = await query
         .order('created_at', { ascending: true })
         .limit(1);
 
@@ -548,7 +563,7 @@ export default function App() {
     checkQueue();
     const interval = setInterval(checkQueue, 3000);
     return () => clearInterval(interval);
-  }, [isWaitingForVoter, isSupabaseConfigured, isLoading]);
+  }, [isWaitingForVoter, isSupabaseConfigured, isLoading, localAllowedCategories]);
 
   if (isLoading) {
     return (
@@ -663,6 +678,12 @@ export default function App() {
                   className={`pb-2 px-2 font-black uppercase text-sm transition-colors ${configTab === 'categories' ? 'border-b-4 border-zinc-800 text-zinc-900' : 'text-zinc-400'}`}
                 >
                   Faixas Etárias
+                </button>
+                <button
+                  onClick={() => setConfigTab('filter')}
+                  className={`pb-2 px-2 font-black uppercase text-sm transition-colors ${configTab === 'filter' ? 'border-b-4 border-zinc-800 text-zinc-900' : 'text-zinc-400'}`}
+                >
+                  Filtro da Urna
                 </button>
                 <button
                   onClick={() => {
@@ -964,6 +985,48 @@ export default function App() {
                   <div className="pt-4 flex justify-between items-center">
                     <p className="text-[10px] text-zinc-400 font-bold uppercase">Aperte CORRIGE para sair</p>
                     <p className="text-[10px] text-zinc-800 font-black uppercase">Alterações salvas automaticamente</p>
+                  </div>
+                </div>
+              ) : configTab === 'filter' ? (
+                <div className="flex-1 flex flex-col">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-black text-zinc-900 uppercase">Filtro de Votação (Local)</h2>
+                  </div>
+                  <p className="text-xs text-zinc-500 font-bold uppercase mb-4">
+                    Selecione quais faixas etárias esta urna específica irá atender. Se nada for selecionado, ela atenderá TODAS as faixas.
+                  </p>
+                  <div className="space-y-2 flex-1">
+                    {voteSteps.map((step, index) => (
+                      <div key={index} className="flex flex-col bg-white border-2 border-zinc-300 transition-colors">
+                        <div className="p-3 flex items-center justify-between group">
+                          <label className="flex items-center gap-3 cursor-pointer flex-1">
+                            <input
+                              type="checkbox"
+                              checked={localAllowedCategories.includes(step.title)}
+                              onChange={() => {
+                                let newAllowed = [...localAllowedCategories];
+                                if (newAllowed.includes(step.title)) {
+                                  newAllowed = newAllowed.filter(c => c !== step.title);
+                                } else {
+                                  newAllowed.push(step.title);
+                                }
+                                setLocalAllowedCategories(newAllowed);
+                                localStorage.setItem('urna_allowed_categories', JSON.stringify(newAllowed));
+                              }}
+                              className="w-5 h-5 accent-emerald-600"
+                            />
+                            <div>
+                              <span className="block font-bold text-zinc-800 uppercase leading-none">{step.title}</span>
+                              <span className="text-[10px] text-zinc-500 font-bold uppercase">Apenas neste tablet</span>
+                            </div>
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="pt-4 flex justify-between items-center">
+                    <p className="text-[10px] text-zinc-400 font-bold uppercase">Aperte CORRIGE para sair</p>
+                    <p className="text-[10px] text-zinc-800 font-black uppercase">Salvo apenas neste dispositivo</p>
                   </div>
                 </div>
               ) : configTab === 'boletim' ? (
