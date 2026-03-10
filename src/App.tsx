@@ -47,6 +47,7 @@ export default function App() {
   const [isWaitingForVoter, setIsWaitingForVoter] = useState(true);
   const [currentVoterId, setCurrentVoterId] = useState<string | null>(null);
   const [currentVoterName, setCurrentVoterName] = useState<string>('');
+  const [currentVoterCategory, setCurrentVoterCategory] = useState<string>('');
   const [waitingTaps, setWaitingTaps] = useState(0);
   const waitingTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -193,7 +194,10 @@ export default function App() {
     });
   }, []);
 
-  const activeVoteSteps = voteSteps.filter(step => enabledCategories.includes(step.title));
+  const activeVoteSteps = voteSteps.filter(step =>
+    enabledCategories.includes(step.title) &&
+    (!currentVoterCategory || step.title === currentVoterCategory)
+  );
   const currentStep = activeVoteSteps[stepIndex];
 
   const playSound = (type: 'click' | 'confirm' | 'end') => {
@@ -509,6 +513,7 @@ export default function App() {
     }
     setCurrentVoterId(null);
     setCurrentVoterName('');
+    setCurrentVoterCategory('');
     setIsWaitingForVoter(true);
   };
 
@@ -567,6 +572,7 @@ export default function App() {
         if (updatedVoter && updatedVoter.length > 0) {
           setCurrentVoterId(voter.id);
           setCurrentVoterName(voter.name);
+          setCurrentVoterCategory(voter.faixa_etaria || '');
           setIsWaitingForVoter(false);
         }
       }
