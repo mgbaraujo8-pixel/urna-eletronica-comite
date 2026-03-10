@@ -196,7 +196,7 @@ export default function App() {
 
   const activeVoteSteps = voteSteps.filter(step =>
     enabledCategories.includes(step.title) &&
-    (!currentVoterCategory || step.title === currentVoterCategory)
+    (!currentVoterCategory || step.title.trim().toLowerCase() === currentVoterCategory.trim().toLowerCase())
   );
   const currentStep = activeVoteSteps[stepIndex];
 
@@ -629,6 +629,31 @@ export default function App() {
           <p className="text-[10px] font-bold text-zinc-400 uppercase mt-8">
             Acesse a mesa em: <span className="text-zinc-600">{window.location.origin}/mesa</span>
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isWaitingForVoter && activeVoteSteps.length === 0 && !isConfigMode && !isConfigPromptOpen) {
+    return (
+      <div className="h-screen w-screen bg-zinc-300 flex flex-col items-center justify-center relative">
+        <div className="text-center p-8 bg-white border-4 border-red-500 rounded shadow-2xl max-w-lg">
+          <h1 className="text-3xl font-black text-red-600 uppercase mb-4">Erro de Categoria</h1>
+          <p className="text-zinc-700 font-bold mb-6">
+            A faixa etária do eleitor ({currentVoterCategory || 'Nenhuma'}) não corresponde a nenhuma categoria ativa ou foi filtrada nesta urna.
+          </p>
+          <button
+            onClick={() => {
+              if (currentVoterId && isSupabaseConfigured) {
+                  // If it mismatches, we possibly just return to queue or mark as cancelled. Here we just return.
+                  supabase.from('voter_queue').update({ status: 'cancelled' }).eq('id', currentVoterId).then();
+              }
+              resetUrna();
+            }}
+            className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 font-black uppercase border-b-4 border-red-700 rounded transition-colors"
+          >
+            Cancelar Voto e Voltar
+          </button>
         </div>
       </div>
     );
