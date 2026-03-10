@@ -122,6 +122,10 @@ export default function MesaReceptora() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim()) return;
+        if (!faixaEtaria) {
+            setMessage({ type: 'warning', text: 'Selecione uma faixa etária para continuar.' });
+            return;
+        }
         if (!isSupabaseConfigured) {
             setMessage({ type: 'error', text: 'Supabase não configurado.' });
             return;
@@ -209,9 +213,13 @@ export default function MesaReceptora() {
 
     const saveEditVoter = async () => {
         if (!editingVoter || !editForm.name.trim()) return;
+        if (!editForm.faixa_etaria) {
+            alert("A faixa etária é obrigatória!");
+            return;
+        }
         await supabase.from('voter_queue').update({
             name: editForm.name.trim().toUpperCase(),
-            faixa_etaria: editForm.faixa_etaria || null,
+            faixa_etaria: editForm.faixa_etaria,
             activity: editForm.activity.trim().toUpperCase() || null,
         }).eq('id', editingVoter.id);
         setEditingVoter(null);

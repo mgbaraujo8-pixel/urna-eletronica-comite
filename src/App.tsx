@@ -30,7 +30,8 @@ export default function App() {
     try {
       if (typeof window !== 'undefined') {
         const item = localStorage.getItem('urna_allowed_categories');
-        return item ? JSON.parse(item) : [];
+        const parsed = item ? JSON.parse(item) : [];
+        return Array.isArray(parsed) ? parsed : [];
       }
     } catch { }
     return [];
@@ -542,8 +543,10 @@ export default function App() {
         .select('*')
         .eq('status', 'pending');
 
-      if (localAllowedCategories.length > 0) {
-        query = query.in('faixa_etaria', localAllowedCategories);
+      const safeLocalCategories = Array.isArray(localAllowedCategories) ? localAllowedCategories : [];
+
+      if (safeLocalCategories.length > 0) {
+        query = query.in('faixa_etaria', safeLocalCategories);
       }
 
       const { data } = await query
@@ -552,11 +555,20 @@ export default function App() {
 
       if (data && data.length > 0) {
         const voter = data[0];
-        // Marcar como votando
-        await supabase.from('voter_queue').update({ status: 'voting' }).eq('id', voter.id);
-        setCurrentVoterId(voter.id);
-        setCurrentVoterName(voter.name);
-        setIsWaitingForVoter(false);
+        // Bloqueio atômico de corrida (race-condition)
+        const { data: updatedVoter } = await supabase
+          .from('voter_queue')
+          .update({ status: 'voting' })
+          .eq('id', voter.id)
+          .eq('status', 'pending')
+          .select();
+
+        // Só abre a urna se este tablet foi o único vitorioso na corrida de UPDATE
+        if (updatedVoter && updatedVoter.length > 0) {
+          setCurrentVoterId(voter.id);
+          setCurrentVoterName(voter.name);
+          setIsWaitingForVoter(false);
+        }
       }
     };
 
