@@ -4,8 +4,7 @@ import { supabase, isSupabaseConfigured } from './supabaseClient';
 interface Voter {
     id: string;
     name: string;
-    age: number | null;
-    birth_date: string | null;
+    faixa_etaria: string | null;
     activity: string | null;
     status: string;
     created_at: string;
@@ -13,15 +12,15 @@ interface Voter {
 
 export default function MesaReceptora() {
     const [name, setName] = useState('');
-    const [age, setAge] = useState('');
-    const [birthDate, setBirthDate] = useState('');
+    const [faixaEtaria, setFaixaEtaria] = useState('');
+    const [categorias, setCategorias] = useState<string[]>([]);
     const [activity, setActivity] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null);
     const [recentVoters, setRecentVoters] = useState<Voter[]>([]);
     const [currentVoter, setCurrentVoter] = useState<Voter | null>(null);
     const [editingVoter, setEditingVoter] = useState<Voter | null>(null);
-    const [editForm, setEditForm] = useState({ name: '', age: '', birth_date: '', activity: '' });
+    const [editForm, setEditForm] = useState({ name: '', faixa_etaria: '', activity: '' });
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [openedAt, setOpenedAt] = useState<string | null>(null);
     const [closedAt, setClosedAt] = useState<string | null>(null);
@@ -53,9 +52,19 @@ export default function MesaReceptora() {
     useEffect(() => {
         loadVoters();
         loadSession();
+        loadCategorias();
         const interval = setInterval(loadVoters, 3000);
         return () => clearInterval(interval);
     }, []);
+
+    const loadCategorias = async () => {
+        if (!isSupabaseConfigured) return;
+        const { data } = await supabase.from('categories')
+            .select('title')
+            .eq('enabled', true)
+            .order('sort_order', { ascending: true });
+        if (data) setCategorias(data.map(c => c.title));
+    };
 
     const loadSession = async () => {
         if (!isSupabaseConfigured) return;
@@ -114,8 +123,8 @@ export default function MesaReceptora() {
                 .eq('name', normalizedName)
                 .eq('status', 'voted');
 
-            if (birthDate) {
-                query = query.eq('birth_date', birthDate);
+            if (faixaEtaria) {
+                query = query.eq('faixa_etaria', faixaEtaria);
             }
 
             const { data: existing } = await query;
@@ -148,8 +157,7 @@ export default function MesaReceptora() {
             // Inserir na fila
             const { error } = await supabase.from('voter_queue').insert({
                 name: normalizedName,
-                age: age ? parseInt(age) : null,
-                birth_date: birthDate || null,
+                faixa_etaria: faixaEtaria || null,
                 activity: activity.trim().toUpperCase() || null,
                 status: 'pending',
             });
@@ -158,8 +166,7 @@ export default function MesaReceptora() {
 
             setMessage({ type: 'success', text: `✅ Voto de ${normalizedName} liberado na urna!` });
             setName('');
-            setAge('');
-            setBirthDate('');
+            setFaixaEtaria('');
             setActivity('');
             await loadVoters();
         } catch (err: any) {
@@ -179,8 +186,7 @@ export default function MesaReceptora() {
         setEditingVoter(voter);
         setEditForm({
             name: voter.name || '',
-            age: voter.age?.toString() || '',
-            birth_date: voter.birth_date || '',
+            faixa_etaria: voter.faixa_etaria || '',
             activity: voter.activity || '',
         });
     };
@@ -189,8 +195,7 @@ export default function MesaReceptora() {
         if (!editingVoter || !editForm.name.trim()) return;
         await supabase.from('voter_queue').update({
             name: editForm.name.trim().toUpperCase(),
-            age: editForm.age ? parseInt(editForm.age) : null,
-            birth_date: editForm.birth_date || null,
+            faixa_etaria: editForm.faixa_etaria || null,
             activity: editForm.activity.trim().toUpperCase() || null,
         }).eq('id', editingVoter.id);
         setEditingVoter(null);
@@ -219,9 +224,9 @@ export default function MesaReceptora() {
         html += `<p style="text-align:center;font-size:11px;color:#666;">Emitido em: ${new Date().toLocaleString('pt-BR')}</p>`;
         if (openedAt) html += `<p style="font-size:11px;"><strong>ABERTURA DA URNA:</strong> ${new Date(openedAt).toLocaleString('pt-BR')}</p>`;
         if (closedAt) html += `<p style="font-size:11px;"><strong>FECHAMENTO DA URNA:</strong> ${new Date(closedAt).toLocaleString('pt-BR')}</p>`;
-        html += `<table><thead><tr><th>#</th><th>NOME</th><th>IDADE</th><th>ATIVIDADE</th></tr></thead><tbody>`;
+        html += `<table><thead><tr><th>#</th><th>NOME</th><th>FAIXA ETÁRIA</th><th>ATIVIDADE</th></tr></thead><tbody>`;
         voted.forEach((v, i) => {
-            html += `<tr><td>${i + 1}</td><td>${v.name}</td><td>${v.age || '-'}</td><td>${v.activity || '-'}</td></tr>`;
+            html += `<tr><td>${i + 1}</td><td>${v.name}</td><td>${v.faixa_etaria || '-'}</td><td>${v.activity || '-'}</td></tr>`;
         });
         html += `</tbody></table>`;
         html += `<div class="total">TOTAL DE ELEITORES: ${voted.length}</div>`;
@@ -327,28 +332,18 @@ export default function MesaReceptora() {
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Idade</label>
-                                <input
-                                    type="number"
-                                    value={age}
-                                    onChange={e => setAge(e.target.value)}
-                                    className="w-full border-2 border-zinc-300 p-3 font-bold text-black focus:border-zinc-800 outline-none text-sm"
-                                    placeholder="Ex: 25"
-                                    min="1"
-                                    max="150"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Data de Nascimento</label>
-                                <input
-                                    type="date"
-                                    value={birthDate}
-                                    onChange={e => setBirthDate(e.target.value)}
-                                    className="w-full border-2 border-zinc-300 p-3 font-bold text-black focus:border-zinc-800 outline-none text-sm"
-                                />
-                            </div>
+                        <div>
+                            <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Faixa Etária</label>
+                            <select
+                                value={faixaEtaria}
+                                onChange={e => setFaixaEtaria(e.target.value)}
+                                className="w-full border-2 border-zinc-300 p-3 font-bold uppercase text-black focus:border-zinc-800 outline-none text-sm bg-white"
+                            >
+                                <option value="">Não informada</option>
+                                {categorias.map(cat => (
+                                    <option key={cat} value={cat}>{cat}</option>
+                                ))}
+                            </select>
                         </div>
 
                         <div>
@@ -414,8 +409,7 @@ export default function MesaReceptora() {
                                     <div className="flex-1 min-w-0">
                                         <p className="font-bold text-zinc-900 uppercase text-sm truncate">{voter.name}</p>
                                         <div className="flex gap-3 text-[10px] font-bold text-zinc-500 uppercase mt-0.5">
-                                            {voter.age && <span>{voter.age} anos</span>}
-                                            {voter.birth_date && <span>{new Date(voter.birth_date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                                            {voter.faixa_etaria && <span>{voter.faixa_etaria}</span>}
                                             {voter.activity && <span>{voter.activity}</span>}
                                         </div>
                                     </div>
@@ -464,26 +458,18 @@ export default function MesaReceptora() {
                                     autoFocus
                                 />
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Idade</label>
-                                    <input
-                                        type="number"
-                                        value={editForm.age}
-                                        onChange={e => setEditForm({ ...editForm, age: e.target.value })}
-                                        className="w-full border-2 border-zinc-300 p-3 font-bold text-black focus:border-zinc-800 outline-none text-sm"
-                                        min="1" max="150"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Data de Nascimento</label>
-                                    <input
-                                        type="date"
-                                        value={editForm.birth_date}
-                                        onChange={e => setEditForm({ ...editForm, birth_date: e.target.value })}
-                                        className="w-full border-2 border-zinc-300 p-3 font-bold text-black focus:border-zinc-800 outline-none text-sm"
-                                    />
-                                </div>
+                            <div>
+                                <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Faixa Etária</label>
+                                <select
+                                    value={editForm.faixa_etaria}
+                                    onChange={e => setEditForm({ ...editForm, faixa_etaria: e.target.value })}
+                                    className="w-full border-2 border-zinc-300 p-3 font-bold uppercase text-black focus:border-zinc-800 outline-none text-sm bg-white"
+                                >
+                                    <option value="">Não informada</option>
+                                    {categorias.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-xs font-bold text-zinc-500 uppercase mb-1">Atividade</label>
