@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Upload, X, Pencil, Trash2, Ban, Printer } from 'lucide-react';
+import { Upload, X, Pencil, Trash2, Ban, Printer, Maximize, Minimize } from 'lucide-react';
 
 import { VOTE_STEPS, Candidate, VoteStep } from './constants';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
@@ -24,6 +24,7 @@ export default function App() {
   // Config states
   const [isConfigPromptOpen, setIsConfigPromptOpen] = useState(false);
   const [isConfigMode, setIsConfigMode] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [configTab, setConfigTab] = useState<'candidates' | 'categories' | 'boletim'>('candidates');
   const [voteLogs, setVoteLogs] = useState<{ category_id: string; vote_type: string; count: number }[]>([]);
   const [isShowingNewCandidateForm, setIsShowingNewCandidateForm] = useState(false);
@@ -38,6 +39,20 @@ export default function App() {
   const [currentVoterName, setCurrentVoterName] = useState<string>('');
   const [waitingTaps, setWaitingTaps] = useState(0);
   const waitingTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => { });
+    } else if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  };
 
   // === SUPABASE: Carregar dados ===
 
@@ -543,10 +558,16 @@ export default function App() {
   }
 
   // Tela de aguardando liberação (urna bloqueada)
-
   if (isWaitingForVoter && !isConfigMode && !isConfigPromptOpen) {
     return (
-      <div className="h-screen w-screen bg-zinc-300 flex items-center justify-center">
+      <div className="h-screen w-screen bg-zinc-300 flex items-center justify-center relative">
+        <button
+          onClick={toggleFullscreen}
+          className="absolute top-4 right-4 p-3 bg-black/5 hover:bg-black/10 rounded-full text-zinc-600 transition-colors z-50"
+          title="Alternar Tela Cheia"
+        >
+          {isFullscreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+        </button>
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-zinc-400 border-t-zinc-800 rounded-full animate-spin mx-auto mb-6"></div>
           <h1
@@ -577,7 +598,14 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen w-screen overflow-hidden">
+    <div className="h-screen w-screen overflow-hidden relative">
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-2 right-2 p-2 bg-black/10 hover:bg-black/20 rounded-full text-zinc-600 transition-colors z-[9999]"
+        title="Alternar Tela Cheia"
+      >
+        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+      </button>
       <div className="bg-zinc-300 p-2 sm:p-4 flex flex-row gap-2 sm:gap-4 w-full h-full">
 
         {/* Screen Section */}

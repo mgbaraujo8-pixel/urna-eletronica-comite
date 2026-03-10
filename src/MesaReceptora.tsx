@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Maximize, Minimize } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 interface Voter {
@@ -24,6 +25,21 @@ export default function MesaReceptora() {
     const [sessionId, setSessionId] = useState<string | null>(null);
     const [openedAt, setOpenedAt] = useState<string | null>(null);
     const [closedAt, setClosedAt] = useState<string | null>(null);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+
+    useEffect(() => {
+        const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
+
+    const toggleFullscreen = () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(() => { });
+        } else if (document.exitFullscreen) {
+            document.exitFullscreen();
+        }
+    };
 
     // Carregar lista de eleitores recentes
     const loadVoters = async () => {
@@ -268,9 +284,18 @@ export default function MesaReceptora() {
         <div className="h-screen w-screen bg-zinc-100 flex flex-col overflow-hidden">
             {/* Header */}
             <div className="bg-zinc-800 text-white px-6 py-3 flex items-center justify-between shadow-lg">
-                <div>
-                    <h1 className="text-xl font-black uppercase tracking-wider">Mesa Receptora</h1>
-                    <p className="text-xs text-zinc-400 font-bold uppercase">Comitê Mais Infância</p>
+                <div className="flex items-center gap-4">
+                    <button
+                        onClick={toggleFullscreen}
+                        className="text-zinc-400 hover:text-white transition-colors p-1"
+                        title="Alternar Tela Cheia"
+                    >
+                        {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                    </button>
+                    <div>
+                        <h1 className="text-xl font-black uppercase tracking-wider">Mesa Receptora</h1>
+                        <p className="text-xs text-zinc-400 font-bold uppercase">Comitê Mais Infância</p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-4">
                     {/* Sessão da Urna */}
