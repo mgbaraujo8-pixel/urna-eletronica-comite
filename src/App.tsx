@@ -1038,7 +1038,7 @@ export default function App() {
                     Selecione quais faixas etárias esta urna específica irá atender. Se nada for selecionado, ela atenderá TODAS as faixas.
                   </p>
                   <div className="space-y-2 flex-1">
-                    {voteSteps.map((step, index) => (
+                    {[...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).map((step, index) => (
                       <div key={index} className="flex flex-col bg-white border-2 border-zinc-300 transition-colors">
                         <div className="p-3 flex items-center justify-between group">
                           <label className="flex items-center gap-3 cursor-pointer flex-1">
