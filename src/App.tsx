@@ -564,30 +564,33 @@ export default function App() {
 
       const { data } = await query
         .order('created_at', { ascending: true })
-        .limit(1);
+        .limit(3);
 
       if (data && data.length > 0) {
-        const voter = data[0];
-        // Bloqueio atômico de corrida (race-condition)
-        const { data: updatedVoter } = await supabase
-          .from('voter_queue')
-          .update({ status: 'voting' })
-          .eq('id', voter.id)
-          .eq('status', 'pending')
-          .select();
+        // Intercepta múltiplos eleitores disponíveis. Caso outra Urna tenha acabado de roubar o [0], esta tenta o [1] na mesma hora.
+        for (const voter of data) {
+          // Bloqueio atômico de corrida (race-condition)
+          const { data: updatedVoter } = await supabase
+            .from('voter_queue')
+            .update({ status: 'voting' })
+            .eq('id', voter.id)
+            .eq('status', 'pending')
+            .select();
 
-        // Só abre a urna se este tablet foi o único vitorioso na corrida de UPDATE
-        if (updatedVoter && updatedVoter.length > 0) {
-          setCurrentVoterId(voter.id);
-          setCurrentVoterName(voter.name);
-          setCurrentVoterCategory(voter.faixa_etaria || '');
-          setIsWaitingForVoter(false);
+          // Só abre a urna se este tablet foi o único a conseguir atualizar o status de 'pending' para 'voting'
+          if (updatedVoter && updatedVoter.length > 0) {
+            setCurrentVoterId(voter.id);
+            setCurrentVoterName(voter.name);
+            setCurrentVoterCategory(voter.faixa_etaria || '');
+            setIsWaitingForVoter(false);
+            return; // Eleitor travado com sucesso, sai do loop imediatamente.
+          }
         }
       }
     };
 
     checkQueue();
-    const interval = setInterval(checkQueue, 3000);
+    const interval = setInterval(checkQueue, 2000);
     return () => clearInterval(interval);
   }, [isWaitingForVoter, isSupabaseConfigured, isLoading, localAllowedCategories]);
 
