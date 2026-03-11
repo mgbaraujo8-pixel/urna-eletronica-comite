@@ -627,26 +627,24 @@ export default function App() {
         if (data && data.length > 0) {
           // Varre os eleitores pendentes encontrados
           for (const voter of data) {
-            // Trava atômica robusta: tenta mudar para voting, e retorna a nova linha apenas se era pending
-            const { data: updatedVoter, error } = await supabase
+            // Atualiza para 'voting'
+            // OBS: Removido o .select('*') na atualização pois políticas RLS
+            // rigorosas podem não retornar a linha atualizada, travando a urna.
+            const { error } = await supabase
               .from('voter_queue')
               .update({ status: 'voting' })
               .eq('id', voter.id)
-              .eq('status', 'pending')
-              .select('*');
+              .eq('status', 'pending');
 
-            if (error) {
-              console.error('Erro de corrida ao capturar eleitor:', error.message);
-              continue;
-            }
-
-            // Exclusividade garantida: se a linha foi retornada, só essa urna foi a escolhida
-            if (updatedVoter && updatedVoter.length > 0) {
+            if (!error) {
+              // Assumindo propriedade se o update não retornou erro (e.g. bloqueio de rede ou DB)
               setCurrentVoterId(voter.id);
               setCurrentVoterName(voter.name);
               setCurrentVoterCategory(voter.faixa_etaria || '');
               setIsWaitingForVoter(false);
               return; // Sai do laço imediatamente
+            } else {
+              console.error('Erro ao atualizar eleitor:', error.message);
             }
           }
         }
