@@ -547,6 +547,7 @@ export default function App() {
   }, [isFinished]);
 
   // Polling para verificar se há eleitor liberado pela mesa
+  // Polling e Realtime fallback para verificar aprovação de eleitores na nuvem
   useEffect(() => {
     if (!isWaitingForVoter || !isSupabaseConfigured || isLoading) return;
 
@@ -570,44 +571,57 @@ export default function App() {
 
         const { data } = await query
           .order('created_at', { ascending: true })
-          .limit(10); // Aumentado para pegar uma fileira ainda maior com segurança
+          .limit(10); // Busca uma grande quantia de pendentes para não engasgar
 
         if (data && data.length > 0) {
-          // Intercepta múltiplos eleitores disponíveis.
+          // Varre os eleitores pendentes encontrados
           for (const voter of data) {
-            // Bloqueio atômico de corrida (race-condition)
+            // Trava atômica robusta: tenta mudar para voting, e retorna a nova linha apenas se era pending
             const { data: updatedVoter, error } = await supabase
               .from('voter_queue')
               .update({ status: 'voting' })
               .eq('id', voter.id)
               .eq('status', 'pending')
-              .select();
+              .select('*');
 
             if (error) {
-              console.error('Erro ao bloquear eleitor:', error);
+              console.error('Erro de corrida ao capturar eleitor:', error.message);
               continue;
             }
 
-            // Só abre a urna se este tablet foi o único a conseguir atualizar o status de 'pending' para 'voting'
+            // Exclusividade garantida: se a linha foi retornada, só essa urna foi a escolhida
             if (updatedVoter && updatedVoter.length > 0) {
               setCurrentVoterId(voter.id);
               setCurrentVoterName(voter.name);
               setCurrentVoterCategory(voter.faixa_etaria || '');
               setIsWaitingForVoter(false);
-              return; // Eleitor travado com sucesso, sai imediatamente.
+              return; // Sai do laço imediatamente
             }
           }
         }
       } catch (err) {
-        console.error('Erro checando fila:', err);
+        console.error('Falha genérica no polling de liberação:', err);
       } finally {
         isChecking = false;
       }
     };
 
+    // Tiro imediato e contínuo
     checkQueue();
-    const interval = setInterval(checkQueue, 2000);
-    return () => clearInterval(interval);
+    const interval = setInterval(checkQueue, 1500);
+
+    // Salva-vidas para abas suspensas/inativas (muito comum em tablets Chrome/Safari)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkQueue();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [isWaitingForVoter, isSupabaseConfigured, isLoading, localAllowedCategories]);
 
   if (isLoading) {
