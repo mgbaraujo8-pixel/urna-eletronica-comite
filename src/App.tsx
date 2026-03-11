@@ -42,6 +42,7 @@ export default function App() {
   const [editCategoryData, setEditCategoryData] = useState({ title: '', digits: 0 });
   const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
   const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: 'NA', photo: '', age: '', activity: '', categoryId: '' });
+  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
 
   // Voter queue states (Mesa Receptora integration)
   const [isWaitingForVoter, setIsWaitingForVoter] = useState(true);
@@ -374,33 +375,68 @@ export default function App() {
     const targetStep = voteSteps[targetStepIndex];
     const photoUrl = newCandidate.photo || `https://picsum.photos/seed/${newCandidate.name}/100/120`;
 
-    if (targetStep.id) {
-      const { data, error } = await supabase.from('candidates').insert({
-        category_id: targetStep.id,
-        name: newCandidate.name,
-        number: newCandidate.number,
-        party: newCandidate.party,
-        photo: photoUrl,
-        age: newCandidate.age || null,
-        activity: newCandidate.activity || null,
-        votes: 0,
-        suspended: false,
-      }).select().single();
+    if (targetStep.id && isSupabaseConfigured) {
+      if (editingCandidateId) {
+        // Edit mode
+        const { error } = await supabase.from('candidates').update({
+          category_id: targetStep.id,
+          name: newCandidate.name,
+          number: newCandidate.number,
+          party: newCandidate.party,
+          photo: photoUrl,
+          age: newCandidate.age || null,
+          activity: newCandidate.activity || null,
+        }).eq('id', editingCandidateId);
 
-      if (error) { alert('Erro ao salvar candidato: ' + error.message); return; }
+        if (error) { alert('Erro ao salvar candidato: ' + error.message); return; }
+        
+        await loadDataFromSupabase();
+      } else {
+        // Insert mode
+        const { error } = await supabase.from('candidates').insert({
+          category_id: targetStep.id,
+          name: newCandidate.name,
+          number: newCandidate.number,
+          party: newCandidate.party,
+          photo: photoUrl,
+          age: newCandidate.age || null,
+          activity: newCandidate.activity || null,
+          votes: 0,
+          suspended: false,
+        });
 
-      const updatedSteps = [...voteSteps];
-      updatedSteps[targetStepIndex].candidates.push({ ...newCandidate, id: data.id, category_id: data.category_id, photo: photoUrl });
-      setVoteSteps(updatedSteps);
+        if (error) { alert('Erro ao salvar candidato: ' + error.message); return; }
+        
+        await loadDataFromSupabase();
+      }
     } else {
+      // Local fallback
       const updatedSteps = [...voteSteps];
-      updatedSteps[targetStepIndex].candidates.push({ ...newCandidate, photo: photoUrl });
+      if (editingCandidateId) {
+        let found = false;
+        for (let s of updatedSteps) {
+          const cIndex = s.candidates.findIndex(c => String(c.number) === editingCandidateId);
+          if (cIndex > -1) {
+            if (s.id !== targetStep.id) {
+              s.candidates.splice(cIndex, 1);
+              updatedSteps[targetStepIndex].candidates.push({ ...newCandidate, photo: photoUrl });
+            } else {
+              s.candidates[cIndex] = { ...s.candidates[cIndex], ...newCandidate, photo: photoUrl };
+            }
+            found = true;
+            break;
+          }
+        }
+      } else {
+        updatedSteps[targetStepIndex].candidates.push({ ...newCandidate, photo: photoUrl });
+      }
       setVoteSteps(updatedSteps);
     }
 
     setNewCandidate({ name: '', number: '', party: 'NA', photo: '', age: '', activity: '', categoryId: '' });
     setIsShowingNewCandidateForm(false);
-    alert("Candidato adicionado com sucesso!");
+    setEditingCandidateId(null);
+    alert(`Candidato ${editingCandidateId ? 'atualizado' : 'adicionado'} com sucesso!`);
   };
 
   const toggleSuspendCandidate = async (sIdx: number, cIdx: number) => {
@@ -410,7 +446,7 @@ export default function App() {
     updatedSteps[sIdx].candidates[cIdx] = { ...c, suspended: newSuspended };
     setVoteSteps(updatedSteps);
 
-    if (c.id) {
+    if (c.id && isSupabaseConfigured) {
       await supabase.from('candidates').update({ suspended: newSuspended }).eq('id', c.id);
     }
   };
@@ -422,10 +458,25 @@ export default function App() {
       updatedSteps[sIdx].candidates.splice(cIdx, 1);
       setVoteSteps(updatedSteps);
 
-      if (c.id) {
+      if (c.id && isSupabaseConfigured) {
         await supabase.from('candidates').delete().eq('id', c.id);
       }
     }
+  };
+
+  const editCandidate = (sIdx: number, cIdx: number) => {
+    const c = voteSteps[sIdx].candidates[cIdx];
+    setNewCandidate({
+      name: c.name,
+      number: c.number.toString(),
+      party: c.party || 'NA',
+      photo: c.photo || '',
+      age: c.age || '',
+      activity: c.activity || '',
+      categoryId: c.category_id || voteSteps[sIdx].id || '',
+    });
+    setEditingCandidateId(c.id || String(c.number));
+    setIsShowingNewCandidateForm(true);
   };
 
   const handleEditCategory = (index: number) => {
@@ -844,6 +895,13 @@ export default function App() {
                                     </div>
                                     <div className="flex gap-2">
                                       <button
+                                        onClick={() => editCandidate(stepIndex, candidateIndex)}
+                                        className="p-1.5 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+                                        title="Editar Candidato"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
                                         onClick={() => toggleSuspendCandidate(stepIndex, candidateIndex)}
                                         className={`p-1.5 rounded-full transition-colors ${c.suspended ? 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300' : 'bg-orange-100 text-orange-600 hover:bg-orange-200'}`}
                                         title={c.suspended ? "Reativar Candidato" : "Suspender Candidato"}
@@ -873,8 +931,19 @@ export default function App() {
                 ) : (
                   <>
                     <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-xl font-black text-zinc-900 uppercase">Novo Candidato</h2>
-                      <button onClick={() => setIsShowingNewCandidateForm(false)} className="text-zinc-500 hover:text-zinc-800 font-bold text-xs uppercase underline">Voltar para lista</button>
+                      <h2 className="text-xl font-black text-zinc-900 uppercase">
+                        {editingCandidateId ? 'Editar Candidato' : 'Novo Candidato'}
+                      </h2>
+                      <button 
+                        onClick={() => {
+                          setIsShowingNewCandidateForm(false);
+                          setEditingCandidateId(null);
+                          setNewCandidate({ name: '', number: '', party: 'NA', photo: '', age: '', activity: '', categoryId: '' });
+                        }} 
+                        className="text-zinc-500 hover:text-zinc-800 font-bold text-xs uppercase underline"
+                      >
+                        Voltar para lista
+                      </button>
                     </div>
                     <form onSubmit={addCandidate} className="space-y-4">
                       <div>
