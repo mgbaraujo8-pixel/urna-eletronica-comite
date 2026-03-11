@@ -249,11 +249,13 @@ export default function App() {
       setIsConfigMode(false);
       setStepIndex(0);
       setIsShowingNewCandidateForm(false);
+      setIsWaitingForVoter(true);
       return;
     }
     if (isConfigPromptOpen) {
       setIsConfigPromptOpen(false);
       setDigits([]);
+      setIsWaitingForVoter(true);
       return;
     }
     setDigits([]);
