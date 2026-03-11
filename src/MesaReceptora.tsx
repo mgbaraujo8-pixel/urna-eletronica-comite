@@ -307,31 +307,32 @@ export default function MesaReceptora() {
                 </div>
                 <div className="flex items-center gap-4">
                     {/* Sessão da Urna */}
-                    {!openedAt ? (
-                        <button
-                            onClick={openUrna}
-                            className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 text-xs font-black uppercase rounded border-b-2 border-emerald-700 transition-colors"
-                        >
-                            🔓 Abrir Urna
-                        </button>
+                    {!openedAt || closedAt ? (
+                        <div className="flex items-center gap-3">
+                            {closedAt && (
+                                <div className="text-right text-[10px] font-bold uppercase leading-tight bg-zinc-900/50 px-2 py-1 rounded">
+                                    <p className="text-zinc-300">Última sessão encerrada</p>
+                                </div>
+                            )}
+                            <button
+                                onClick={openUrna}
+                                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 text-xs font-black uppercase rounded border-b-2 border-emerald-700 transition-colors"
+                            >
+                                🔓 Abrir {closedAt ? 'Nova' : ''} Urna
+                            </button>
+                        </div>
                     ) : (
                         <div className="flex items-center gap-3">
                             <div className="text-right text-[10px] font-bold uppercase leading-tight">
                                 <p className="text-emerald-400">Aberta: {new Date(openedAt).toLocaleString('pt-BR')}</p>
-                                {closedAt ? (
-                                    <p className="text-red-400">Fechada: {new Date(closedAt).toLocaleString('pt-BR')}</p>
-                                ) : (
-                                    <p className="text-yellow-400">Em andamento</p>
-                                )}
+                                <p className="text-yellow-400">Em andamento</p>
                             </div>
-                            {!closedAt && (
-                                <button
-                                    onClick={closeUrna}
-                                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 text-xs font-black uppercase rounded border-b-2 border-red-700 transition-colors"
-                                >
-                                    🔒 Fechar Urna
-                                </button>
-                            )}
+                            <button
+                                onClick={closeUrna}
+                                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 text-xs font-black uppercase rounded border-b-2 border-red-700 transition-colors"
+                            >
+                                🔒 Fechar Urna
+                            </button>
                         </div>
                     )}
                     <div className="text-right">
