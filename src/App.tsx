@@ -41,7 +41,7 @@ export default function App() {
   const [editingCategoryIndex, setEditingCategoryIndex] = useState<number | null>(null);
   const [editCategoryData, setEditCategoryData] = useState({ title: '', digits: 0 });
   const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
-  const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: '', photo: '', age: '', activity: '' });
+  const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: 'NA', photo: '', age: '', activity: '', categoryId: '' });
 
   // Voter queue states (Mesa Receptora integration)
   const [isWaitingForVoter, setIsWaitingForVoter] = useState(true);
@@ -361,11 +361,11 @@ export default function App() {
 
   const addCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCandidate.name || !newCandidate.number || !newCandidate.party) return;
+    if (!newCandidate.name || !newCandidate.number || !newCandidate.categoryId) return;
 
-    const targetStepIndex = voteSteps.findIndex(step => step.digits === newCandidate.number.length);
+    const targetStepIndex = voteSteps.findIndex(step => step.id === newCandidate.categoryId || String(step.title) === newCandidate.categoryId);
     if (targetStepIndex === -1) {
-      alert("Número com quantidade de dígitos inválida para os cargos disponíveis.");
+      alert("Selecione uma faixa etária válida.");
       return;
     }
 
@@ -396,7 +396,7 @@ export default function App() {
       setVoteSteps(updatedSteps);
     }
 
-    setNewCandidate({ name: '', number: '', party: '', photo: '', age: '', activity: '' });
+    setNewCandidate({ name: '', number: '', party: 'NA', photo: '', age: '', activity: '', categoryId: '' });
     setIsShowingNewCandidateForm(false);
     alert("Candidato adicionado com sucesso!");
   };
@@ -848,47 +848,40 @@ export default function App() {
                           onChange={e => setNewCandidate({ ...newCandidate, name: e.target.value })}
                           className="w-full bg-white border-2 border-zinc-300 p-2 font-bold uppercase focus:border-zinc-800 outline-none text-black"
                           placeholder="Nome do Candidato"
+                          required
                         />
                       </div>
+                      
+                      <div>
+                        <label className="block text-xs font-bold text-zinc-500 uppercase">Faixa Etária</label>
+                        <select
+                          value={newCandidate.categoryId}
+                          onChange={e => {
+                            const selectedStepId = e.target.value;
+                            setNewCandidate({ ...newCandidate, categoryId: selectedStepId });
+                          }}
+                          className="w-full bg-white border-2 border-zinc-300 p-2 font-bold uppercase focus:border-zinc-800 outline-none text-black"
+                          required
+                        >
+                          <option value="">Selecione uma faixa etária</option>
+                          {voteSteps.map(step => (
+                            <option key={step.id || step.title} value={step.id || step.title}>
+                              {step.title}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-500 uppercase">Número</label>
+                        <div className="col-span-2">
+                          <label className="block text-xs font-bold text-zinc-500 uppercase">Número do Candidato</label>
                           <input
                             type="text"
                             value={newCandidate.number}
                             onChange={e => setNewCandidate({ ...newCandidate, number: e.target.value.replace(/\D/g, '') })}
                             className="w-full bg-white border-2 border-zinc-300 p-2 font-bold focus:border-zinc-800 outline-none text-black"
                             placeholder="Ex: 1234"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-500 uppercase">Partido</label>
-                          <input
-                            type="text"
-                            value={newCandidate.party}
-                            onChange={e => setNewCandidate({ ...newCandidate, party: e.target.value })}
-                            className="w-full bg-white border-2 border-zinc-300 p-2 font-bold uppercase focus:border-zinc-800 outline-none text-black"
-                            placeholder="Ex: PDS"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-500 uppercase">Idade (Opcional)</label>
-                          <input
-                            type="text"
-                            value={newCandidate.age}
-                            onChange={e => setNewCandidate({ ...newCandidate, age: e.target.value.replace(/\D/g, '') })}
-                            className="w-full bg-white border-2 border-zinc-300 p-2 font-bold focus:border-zinc-800 outline-none text-black"
-                            placeholder="Ex: 45"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-zinc-500 uppercase">Atividade (Opcional)</label>
-                          <input
-                            type="text"
-                            value={newCandidate.activity}
-                            onChange={e => setNewCandidate({ ...newCandidate, activity: e.target.value })}
-                            className="w-full bg-white border-2 border-zinc-300 p-2 font-bold uppercase focus:border-zinc-800 outline-none text-black"
-                            placeholder="Ex: Advogado"
+                            required
                           />
                         </div>
                       </div>
