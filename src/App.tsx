@@ -735,23 +735,25 @@ export default function App() {
                   Filtro da Urna
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     setConfigTab('boletim');
+                    
+                    // Fetch all fresh data first to guarantee perfect sync
+                    setIsLoading(true);
+                    await loadDataFromSupabase();
+                    
                     // Carregar logs de voto do Supabase
                     if (isSupabaseConfigured) {
-                      supabase.from('vote_logs')
-                        .select('category_id, vote_type')
-                        .then(({ data }) => {
-                          if (data) {
-                            const counts: { [key: string]: { category_id: string; vote_type: string; count: number } } = {};
-                            data.forEach((log: any) => {
-                              const key = `${log.category_id}_${log.vote_type}`;
-                              if (!counts[key]) counts[key] = { category_id: log.category_id, vote_type: log.vote_type, count: 0 };
-                              counts[key].count++;
-                            });
-                            setVoteLogs(Object.values(counts));
-                          }
+                      const { data } = await supabase.from('vote_logs').select('category_id, vote_type');
+                      if (data) {
+                        const counts: { [key: string]: { category_id: string; vote_type: string; count: number } } = {};
+                        data.forEach((log: any) => {
+                          const key = `${log.category_id}_${log.vote_type}`;
+                          if (!counts[key]) counts[key] = { category_id: log.category_id, vote_type: log.vote_type, count: 0 };
+                          counts[key].count++;
                         });
+                        setVoteLogs(Object.values(counts));
+                      }
                     }
                   }}
                   className={`pb-2 px-2 font-black uppercase text-sm transition-colors ${configTab === 'boletim' ? 'border-b-4 border-zinc-800 text-zinc-900' : 'text-zinc-400'}`}
