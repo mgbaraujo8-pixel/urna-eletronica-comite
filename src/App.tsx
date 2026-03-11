@@ -505,7 +505,13 @@ export default function App() {
     setStepIndex(0);
     setIsFinished(false);
     setRestartCountdown(10);
-    handleCorrige();
+    
+    // Clear the voting input state explicitly because handleCorrige() would see isFinished as true due to async state update
+    setDigits([]);
+    setCandidate(null);
+    setIsWhiteVote(false);
+    setIsInvalidVote(false);
+    setShowInstructions(false);
 
     // Marcar eleitor como votou e voltar para aguardando
     if (currentVoterId && isSupabaseConfigured) {
