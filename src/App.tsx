@@ -773,7 +773,7 @@ export default function App() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                      {voteSteps.map((step, stepIndex) => (
+                      {[...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).map((step, stepIndex) => (
                         <div key={step.title} className="bg-white border-2 border-zinc-300 p-4">
                           <h3 className="font-black text-zinc-800 uppercase mb-3 text-sm border-b-2 border-zinc-100 pb-2">{step.title}</h3>
 
@@ -1136,7 +1136,7 @@ export default function App() {
                           html += `<div class="meta-info" style="color:#666; border-bottom: 1px dashed #ccc; padding-bottom: 8px;"><span>EMITIDO:</span><span>${new Date().toLocaleString('pt-BR')}</span></div>`;
 
 
-                          voteSteps.forEach(step => {
+                          [...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).forEach(step => {
                             const catVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
                             const wv = step.id ? whiteVotes(step.id) : 0;
                             const nv = step.id ? nullVotes(step.id) : 0;
@@ -1194,7 +1194,7 @@ export default function App() {
 
                   {/* Por faixa etária */}
                   <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                    {voteSteps.map(step => {
+                    {[...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).map(step => {
                       const catCandidateVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
                       const whiteVotes = step.id ? voteLogs.filter(l => l.category_id === step.id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0) : 0;
                       const nullVotes = step.id ? voteLogs.filter(l => l.category_id === step.id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0) : 0;
