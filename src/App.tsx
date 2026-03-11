@@ -889,7 +889,9 @@ export default function App() {
                     </div>
 
                     <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-                      {[...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).map((step, stepIndex) => (
+                      {[...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).map((step) => {
+                        const originalStepIndex = voteSteps.findIndex(s => s.title === step.title);
+                        return (
                         <div key={step.title} className="bg-white border-2 border-zinc-300 p-4">
                           <h3 className="font-black text-zinc-800 uppercase mb-3 text-sm border-b-2 border-zinc-100 pb-2">{step.title}</h3>
 
@@ -923,21 +925,21 @@ export default function App() {
                                     </div>
                                     <div className="flex gap-2">
                                       <button
-                                        onClick={() => editCandidate(stepIndex, candidateIndex)}
+                                        onClick={() => editCandidate(originalStepIndex, candidateIndex)}
                                         className="p-1.5 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
                                         title="Editar Candidato"
                                       >
                                         <Pencil className="w-3.5 h-3.5" />
                                       </button>
                                       <button
-                                        onClick={() => toggleSuspendCandidate(stepIndex, candidateIndex)}
+                                        onClick={() => toggleSuspendCandidate(originalStepIndex, candidateIndex)}
                                         className={`p-1.5 rounded-full transition-colors ${c.suspended ? 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300' : 'bg-orange-100 text-orange-600 hover:bg-orange-200'}`}
                                         title={c.suspended ? "Reativar Candidato" : "Suspender Candidato"}
                                       >
                                         <Ban className="w-3.5 h-3.5" />
                                       </button>
                                       <button
-                                        onClick={() => removeCandidate(stepIndex, candidateIndex)}
+                                        onClick={() => removeCandidate(originalStepIndex, candidateIndex)}
                                         className="p-1.5 rounded-full bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
                                         title="Remover Candidato"
                                       >
@@ -950,7 +952,8 @@ export default function App() {
                             </div>
                           )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     <div className="pt-4 flex justify-between items-center mt-auto border-t border-zinc-300">
                       <p className="text-[10px] text-zinc-400 font-bold uppercase">Aperte CORRIGE para sair</p>
