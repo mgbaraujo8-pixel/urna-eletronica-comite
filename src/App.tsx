@@ -1086,16 +1086,23 @@ export default function App() {
                       <button
                         onClick={async () => {
                           if (!window.confirm('Tem certeza que deseja ZERAR toda a apuração de votos?\nEssa ação apagará todos os votos computados DEFINITIVAMENTE.')) return;
+                          
                           if (isSupabaseConfigured) {
-                            try {
-                              await supabase.from('candidates').update({ votes: 0 }).neq('id', '00000000-0000-0000-0000-000000000000');
-                              await supabase.from('vote_logs').delete().neq('id', 0);
-                              setVoteLogs([]);
-                              await loadDataFromSupabase();
-                              alert('Todos os votos foram zerados com sucesso!');
-                            } catch (err: any) {
-                              alert('Erro ao zerar votos: ' + err.message);
+                            const { error: candErr } = await supabase.from('candidates').update({ votes: 0 }).not('id', 'is', null);
+                            if (candErr) {
+                              alert('Erro ao zerar contagem de candidatos: ' + candErr.message);
+                              return;
                             }
+                            
+                            const { error: logsErr } = await supabase.from('vote_logs').delete().not('id', 'is', null);
+                            if (logsErr) {
+                              alert('Erro ao limpar histórico de votos: ' + logsErr.message);
+                              return;
+                            }
+                            
+                            setVoteLogs([]);
+                            await loadDataFromSupabase();
+                            alert('Todos os votos foram zerados com sucesso!');
                           }
                         }}
                         className="flex items-center gap-2 bg-red-100 text-red-700 px-4 py-2 text-xs font-bold uppercase hover:bg-red-200 transition-colors shadow-sm"
