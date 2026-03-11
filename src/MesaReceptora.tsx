@@ -79,7 +79,7 @@ export default function MesaReceptora() {
             .select('title')
             .eq('enabled', true)
             .order('sort_order', { ascending: true });
-        if (data) setCategorias(data.map(c => c.title));
+        if (data) setCategorias(data.map(c => c.title).sort((a, b) => a.localeCompare(b)));
     };
 
     const loadSession = async () => {
