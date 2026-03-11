@@ -1250,8 +1250,8 @@ export default function App() {
                   <h2 className="text-2xl font-black text-zinc-900 uppercase tracking-tight">{currentStep.title}</h2>
                 </div>
                 {candidate && (
-                  <div className="absolute top-6 right-6 w-[270px] h-[360px] bg-white border-2 border-zinc-300 shadow-xl overflow-hidden z-20">
-                    <img src={candidate.photo} alt={candidate.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <div className="absolute top-8 right-8 w-[330px] h-[440px] bg-white border-4 border-zinc-300 shadow-2xl overflow-hidden z-20 flex items-center justify-center">
+                    <img src={candidate.photo} alt={candidate.name} className="w-full h-full object-cover object-top" referrerPolicy="no-referrer" />
                   </div>
                 )}
               </div>
