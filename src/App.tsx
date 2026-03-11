@@ -50,6 +50,7 @@ export default function App() {
   const [currentVoterName, setCurrentVoterName] = useState<string>('');
   const [currentVoterCategory, setCurrentVoterCategory] = useState<string>('');
   const [waitingTaps, setWaitingTaps] = useState(0);
+  const [waitingOutsideFilterCount, setWaitingOutsideFilterCount] = useState(0);
   const waitingTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -624,30 +625,49 @@ export default function App() {
           .order('created_at', { ascending: true })
           .limit(10); // Busca uma grande quantia de pendentes para não engasgar
 
+        let matched = false;
+
         if (data && data.length > 0) {
           // Varre os eleitores pendentes encontrados
           for (const voter of data) {
-            // Atualiza para 'voting'
-            // OBS: Removido o .select('*') na atualização pois políticas RLS
-            // rigorosas podem não retornar a linha atualizada, travando a urna.
-            const { error } = await supabase
+            // Trava atômica robusta: tenta mudar para voting, e retorna a nova linha apenas se era pending
+            const { data: updatedVoter, error } = await supabase
               .from('voter_queue')
               .update({ status: 'voting' })
               .eq('id', voter.id)
-              .eq('status', 'pending');
+              .eq('status', 'pending')
+              .select('*');
 
-            if (!error) {
-              // Assumindo propriedade se o update não retornou erro (e.g. bloqueio de rede ou DB)
+            if (error) {
+              console.error('Erro de corrida ao capturar eleitor:', error.message);
+              continue;
+            }
+
+            // Exclusividade garantida: se a linha foi retornada, só essa urna foi a escolhida
+            if (updatedVoter && updatedVoter.length > 0) {
+              matched = true;
               setCurrentVoterId(voter.id);
               setCurrentVoterName(voter.name);
               setCurrentVoterCategory(voter.faixa_etaria || '');
+              setWaitingOutsideFilterCount(0);
               setIsWaitingForVoter(false);
               return; // Sai do laço imediatamente
-            } else {
-              console.error('Erro ao atualizar eleitor:', error.message);
             }
           }
         }
+
+        if (!matched && safeLocalCategories.length > 0) {
+          // Check if there are ANY pending voters, just not for our categories
+          const { count } = await supabase
+            .from('voter_queue')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'pending');
+          
+          setWaitingOutsideFilterCount(count || 0);
+        } else {
+          setWaitingOutsideFilterCount(0);
+        }
+
       } catch (err) {
         console.error('Falha genérica no polling de liberação:', err);
       } finally {
@@ -716,6 +736,16 @@ export default function App() {
           <p className="text-sm font-bold text-zinc-500 uppercase">
             A mesa receptora deve liberar o próximo eleitor
           </p>
+          {waitingOutsideFilterCount > 0 && (
+            <div className="mt-8 bg-orange-100 border-2 border-orange-300 p-4 rounded max-w-sm mx-auto animate-pulse">
+              <p className="text-xs font-black text-orange-800 uppercase leading-tight">
+                Atenção:<br/>Há {waitingOutsideFilterCount} pessoa(s) na fila para outras faixas etárias.
+              </p>
+              <p className="text-[10px] text-orange-600 font-bold uppercase mt-1">
+                Verifique as configurações deste tablet.
+              </p>
+            </div>
+          )}
           <p className="text-[10px] font-bold text-zinc-400 uppercase mt-8">
             Acesse a mesa em: <span className="text-zinc-600">{window.location.origin}/mesa</span>
           </p>
