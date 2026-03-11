@@ -202,6 +202,12 @@ export default function MesaReceptora() {
         await loadVoters();
     };
 
+    const deleteVoter = async (voterId: string) => {
+        if (!window.confirm('Tem certeza que deseja excluir permanentemente este eleitor da fila?')) return;
+        await supabase.from('voter_queue').delete().eq('id', voterId);
+        await loadVoters();
+    };
+
     const startEditVoter = (voter: Voter) => {
         setEditingVoter(voter);
         setEditForm({
@@ -450,24 +456,30 @@ export default function MesaReceptora() {
                                     <span className={`px-2 py-1 text-[10px] font-black uppercase border rounded ${statusColor(voter.status)}`}>
                                         {statusLabel(voter.status)}
                                     </span>
-                                    {(voter.status === 'pending' || voter.status === 'voting') && (
-                                        <div className="flex gap-2">
-                                            {voter.status === 'pending' && (
-                                                <button
-                                                    onClick={() => startEditVoter(voter)}
-                                                    className="bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
-                                                >
-                                                    ✏️ Editar
-                                                </button>
-                                            )}
+                                    <div className="flex gap-2">
+                                        {voter.status === 'pending' && (
+                                            <button
+                                                onClick={() => startEditVoter(voter)}
+                                                className="bg-zinc-200 hover:bg-zinc-300 text-zinc-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
+                                            >
+                                                ✏️ Editar
+                                            </button>
+                                        )}
+                                        {(voter.status === 'pending' || voter.status === 'voting') && (
                                             <button
                                                 onClick={() => cancelVoter(voter.id)}
-                                                className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
+                                                className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
                                             >
                                                 ❌ Cancelar
                                             </button>
-                                        </div>
-                                    )}
+                                        )}
+                                        <button
+                                            onClick={() => deleteVoter(voter.id)}
+                                            className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1.5 text-[10px] font-bold uppercase rounded transition-colors"
+                                        >
+                                            🗑️ Excluir
+                                        </button>
+                                    </div>
                                 </div>
                             ))
                         )}
