@@ -940,7 +940,7 @@ export default function App() {
                   </div>
                   <p className="text-xs text-zinc-500 font-bold uppercase mb-4">Selecione as faixas etárias que aparecerão na votação:</p>
                   <div className="space-y-2 flex-1">
-                    {voteSteps.map((step, index) => (
+                    {[...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).map((step, index) => (
                       <div key={index} className="flex flex-col bg-white border-2 border-zinc-300 transition-colors">
                         {editingCategoryIndex === index ? (
                           <div className="p-3 space-y-3 bg-zinc-50 border-b-2 border-zinc-200">
