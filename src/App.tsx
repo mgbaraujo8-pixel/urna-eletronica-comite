@@ -550,42 +550,58 @@ export default function App() {
   useEffect(() => {
     if (!isWaitingForVoter || !isSupabaseConfigured || isLoading) return;
 
+    let isChecking = false;
+
     const checkQueue = async () => {
-      let query = supabase
-        .from('voter_queue')
-        .select('*')
-        .eq('status', 'pending');
+      if (isChecking) return;
+      isChecking = true;
 
-      const safeLocalCategories = Array.isArray(localAllowedCategories) ? localAllowedCategories : [];
+      try {
+        let query = supabase
+          .from('voter_queue')
+          .select('*')
+          .eq('status', 'pending');
 
-      if (safeLocalCategories.length > 0) {
-        query = query.in('faixa_etaria', safeLocalCategories);
-      }
+        const safeLocalCategories = Array.isArray(localAllowedCategories) ? localAllowedCategories : [];
 
-      const { data } = await query
-        .order('created_at', { ascending: true })
-        .limit(3);
+        if (safeLocalCategories.length > 0) {
+          query = query.in('faixa_etaria', safeLocalCategories);
+        }
 
-      if (data && data.length > 0) {
-        // Intercepta múltiplos eleitores disponíveis. Caso outra Urna tenha acabado de roubar o [0], esta tenta o [1] na mesma hora.
-        for (const voter of data) {
-          // Bloqueio atômico de corrida (race-condition)
-          const { data: updatedVoter } = await supabase
-            .from('voter_queue')
-            .update({ status: 'voting' })
-            .eq('id', voter.id)
-            .eq('status', 'pending')
-            .select();
+        const { data } = await query
+          .order('created_at', { ascending: true })
+          .limit(10); // Aumentado para pegar uma fileira ainda maior com segurança
 
-          // Só abre a urna se este tablet foi o único a conseguir atualizar o status de 'pending' para 'voting'
-          if (updatedVoter && updatedVoter.length > 0) {
-            setCurrentVoterId(voter.id);
-            setCurrentVoterName(voter.name);
-            setCurrentVoterCategory(voter.faixa_etaria || '');
-            setIsWaitingForVoter(false);
-            return; // Eleitor travado com sucesso, sai do loop imediatamente.
+        if (data && data.length > 0) {
+          // Intercepta múltiplos eleitores disponíveis.
+          for (const voter of data) {
+            // Bloqueio atômico de corrida (race-condition)
+            const { data: updatedVoter, error } = await supabase
+              .from('voter_queue')
+              .update({ status: 'voting' })
+              .eq('id', voter.id)
+              .eq('status', 'pending')
+              .select();
+
+            if (error) {
+              console.error('Erro ao bloquear eleitor:', error);
+              continue;
+            }
+
+            // Só abre a urna se este tablet foi o único a conseguir atualizar o status de 'pending' para 'voting'
+            if (updatedVoter && updatedVoter.length > 0) {
+              setCurrentVoterId(voter.id);
+              setCurrentVoterName(voter.name);
+              setCurrentVoterCategory(voter.faixa_etaria || '');
+              setIsWaitingForVoter(false);
+              return; // Eleitor travado com sucesso, sai imediatamente.
+            }
           }
         }
+      } catch (err) {
+        console.error('Erro checando fila:', err);
+      } finally {
+        isChecking = false;
       }
     };
 
