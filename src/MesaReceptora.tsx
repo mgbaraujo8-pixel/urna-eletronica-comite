@@ -26,6 +26,7 @@ export default function MesaReceptora() {
     const [openedAt, setOpenedAt] = useState<string | null>(null);
     const [closedAt, setClosedAt] = useState<string | null>(null);
     const [isFullscreen, setIsFullscreen] = useState(false);
+    const [totalVotedCount, setTotalVotedCount] = useState(0);
 
     useEffect(() => {
         const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
@@ -48,8 +49,16 @@ export default function MesaReceptora() {
             .from('voter_queue')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(50);
+            .limit(500);
         if (data) setRecentVoters(data);
+
+        // Buscar contagem total de votos reais (status = voted)
+        const { count } = await supabase
+            .from('voter_queue')
+            .select('*', { count: 'exact', head: true })
+            .eq('status', 'voted');
+        
+        if (count !== null) setTotalVotedCount(count);
 
         // Verificar se há eleitor votando
         const { data: pending } = await supabase
@@ -292,7 +301,8 @@ export default function MesaReceptora() {
         }
     };
 
-    const votedCount = recentVoters.filter(v => v.status === 'voted').length;
+    // Removido o cálculo local limitado do votedCount para usar o totalVotedCount vindo do banco
+    // const votedCount = recentVoters.filter(v => v.status === 'voted').length;
 
     return (
         <div className="h-screen w-screen bg-zinc-100 flex flex-col overflow-hidden">
@@ -343,7 +353,7 @@ export default function MesaReceptora() {
                     )}
                     <div className="text-right">
                         <p className="text-[10px] text-zinc-400 font-bold uppercase">Eleitores</p>
-                        <p className="text-2xl font-black text-emerald-400">{votedCount}</p>
+                        <p className="text-2xl font-black text-emerald-400">{totalVotedCount}</p>
                     </div>
                     {currentVoter && (
                         <div className={`px-3 py-1 rounded text-xs font-black uppercase border ${currentVoter.status === 'pending' ? 'bg-yellow-500 border-yellow-600 text-yellow-900' : 'bg-blue-500 border-blue-600 text-white'}`}>

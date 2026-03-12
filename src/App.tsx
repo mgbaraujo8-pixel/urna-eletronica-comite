@@ -43,6 +43,7 @@ export default function App() {
   const [enabledCategories, setEnabledCategories] = useState<string[]>([]);
   const [newCandidate, setNewCandidate] = useState({ name: '', number: '', party: 'NA', photo: '', age: '', activity: '', categoryId: '' });
   const [editingCandidateId, setEditingCandidateId] = useState<string | null>(null);
+  const [voterComparecimento, setVoterComparecimento] = useState(0);
 
   // Voter queue states (Mesa Receptora integration)
   const [isWaitingForVoter, setIsWaitingForVoter] = useState(true);
@@ -895,7 +896,14 @@ export default function App() {
                         });
                         setVoteLogs(Object.values(counts) as any);
                       }
+
+                      // Buscar contagem de eleitores (comparecimento)
+                      const { count: vCount } = await supabase.from('voter_queue')
+                        .select('*', { count: 'exact', head: true })
+                        .eq('status', 'voted');
+                      if (vCount !== null) setVoterComparecimento(vCount);
                     }
+                    setIsLoading(false);
                   }}
                   className={`pb-2 px-2 font-black uppercase text-sm transition-colors ${configTab === 'boletim' ? 'border-b-4 border-zinc-800 text-zinc-900' : 'text-zinc-400'}`}
                 >
@@ -1273,6 +1281,7 @@ export default function App() {
                           await loadDataFromSupabase();
                           
                           let currentVoteLogs = voteLogs;
+                          let actualVoterComparecimento = voterComparecimento;
                           if (isSupabaseConfigured) {
                             const { data } = await supabase.from('vote_logs').select('category_id, vote_type, candidate_id');
                             if (data) {
@@ -1298,6 +1307,13 @@ export default function App() {
                             if (data && data.length > 0) sessionData = data[0];
                           }
 
+                          if (isSupabaseConfigured) {
+                            const { count: vCount } = await supabase.from('voter_queue')
+                              .select('*', { count: 'exact', head: true })
+                              .eq('status', 'voted');
+                            if (vCount !== null) actualVoterComparecimento = vCount;
+                          }
+
                           let html = `<html><head><title>Boletim de Urna</title><style>
                           body { font-family: 'Courier New', monospace; padding: 20px; max-width: 400px; margin: 0 auto; }
                           h1 { text-align: center; font-size: 18px; border-bottom: 2px solid #000; padding-bottom: 8px; }
@@ -1310,6 +1326,7 @@ export default function App() {
                           @media print { body { padding: 0; } }
                         </style></head><body>`;
                           html += `<h1>BOLETIM DE URNA</h1>`;
+                          html += `<div class="grand-total" style="margin-bottom: 10px; border-bottom: 2px solid #000; border-top: none;">ELEITORES APTOS: ${actualVoterComparecimento}</div>`;
 
                           if (sessionData && sessionData.opened_at) {
                             html += `<div class="meta-info"><span>ABERTURA:</span><span>${new Date(sessionData.opened_at).toLocaleString('pt-BR')}</span></div>`;
@@ -1366,8 +1383,12 @@ export default function App() {
                     
                     return (
                       <div className="bg-white border-2 border-zinc-300 p-4 mb-4">
+                        <div className="flex items-center justify-between border-b pb-2 mb-2">
+                          <span className="font-black text-zinc-500 uppercase text-[10px]">Comparecimento (Eleitores)</span>
+                          <span className="font-black text-xl text-emerald-600">{voterComparecimento}</span>
+                        </div>
                         <div className="flex items-center justify-between">
-                          <span className="font-black text-zinc-800 uppercase text-sm">Total Geral de Votos</span>
+                          <span className="font-black text-zinc-800 uppercase text-sm">Total de Votos no Boletim</span>
                           <span className="font-black text-3xl text-emerald-600">{totalGeralVotosDirect}</span>
                         </div>
                         <div className="flex gap-4 mt-2">
