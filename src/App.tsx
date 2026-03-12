@@ -215,25 +215,52 @@ export default function App() {
   const handleNumberClick = (num: string) => {
     if (isFinished || isWhiteVote || isConfigMode || isConfigPromptOpen) return;
 
-    playSound('click');
-    const newDigits = [...digits, num];
-    setDigits(newDigits);
-
-    if (newDigits.join('') === '0000') {
-      setIsConfigPromptOpen(true);
+    const currentSequence = digits.join('');
+    
+    // Especial: Sequência de configuração 0000
+    if ((currentSequence === '0' || currentSequence === '00' || currentSequence === '000') && num === '0') {
+      playSound('click');
+      const newDigits = [...digits, num];
+      setDigits(newDigits);
+      if (newDigits.length === 4) setIsConfigPromptOpen(true);
       return;
     }
 
-    if (newDigits.length === currentStep.digits) {
-      const found = currentStep.candidates.find(c => c.number === newDigits.join('') && !c.suspended);
-      if (found) {
-        setCandidate(found);
-        setIsInvalidVote(false);
-      } else {
-        setCandidate(null);
-        setIsInvalidVote(true);
-      }
+    // Calcula o máximo de dígitos possível para esta categoria (baseado nos candidatos cadastrados)
+    const maxDigitsInStep = Math.max(currentStep.digits, ...currentStep.candidates.map(c => c.number.toString().length));
+
+    // Bloqueia se já atingiu o máximo absoluto
+    if (digits.length >= maxDigitsInStep) return;
+
+    playSound('click');
+    const newDigits = [...digits, num];
+    const newSequence = newDigits.join('');
+    setDigits(newDigits);
+
+    // Tentar encontrar candidato com o número atual
+    const found = currentStep.candidates.find(c => c.number.toString() === newSequence && !c.suspended);
+    
+    if (found) {
+      setCandidate(found);
+      setIsInvalidVote(false);
       setShowInstructions(true);
+    } else {
+      // Se atingiu o número padrão de dígitos e não encontrou, ou se passou dele
+      if (newSequence.length >= currentStep.digits) {
+        // Verifica se ainda existe algum candidato que COMEÇA com essa sequência (para permitir continuar digitando)
+        const possibleFutureCandidate = currentStep.candidates.find(c => c.number.toString().startsWith(newSequence) && !c.suspended);
+        
+        if (!possibleFutureCandidate) {
+          setCandidate(null);
+          setIsInvalidVote(true);
+          setShowInstructions(true);
+        } else {
+          // Ainda pode ser um candidato mais longo, limpa estado visual temporário
+          setCandidate(null);
+          setIsInvalidVote(false);
+          setShowInstructions(false);
+        }
+      }
     }
   };
 
@@ -283,7 +310,7 @@ export default function App() {
       return;
     }
 
-    const canConfirm = isWhiteVote || (digits.length === currentStep.digits);
+    const canConfirm = isWhiteVote || candidate || (digits.length >= currentStep.digits && isInvalidVote);
 
     if (canConfirm) {
       if (candidate) {
@@ -1389,8 +1416,8 @@ export default function App() {
                 )}
               </div>
 
-              <div className="flex gap-2 mb-8">
-                {Array.from({ length: currentStep.digits }).map((_, i) => (
+              <div className="flex gap-2 mb-8 flex-wrap">
+                {Array.from({ length: Math.max(currentStep.digits, digits.length) }).map((_, i) => (
                   <div
                     key={i}
                     className={`w-10 h-12 border-2 border-zinc-400 flex items-center justify-center text-3xl font-bold bg-white text-black
