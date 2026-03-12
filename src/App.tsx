@@ -885,15 +885,15 @@ export default function App() {
                     
                     // Carregar logs de voto do Supabase
                     if (isSupabaseConfigured) {
-                      const { data } = await supabase.from('vote_logs').select('category_id, vote_type');
+                      const { data } = await supabase.from('vote_logs').select('category_id, vote_type, candidate_id');
                       if (data) {
-                        const counts: { [key: string]: { category_id: string; vote_type: string; count: number } } = {};
+                        const counts: { [key: string]: { category_id: string; vote_type: string; count: number; candidate_id?: string } } = {};
                         data.forEach((log: any) => {
-                          const key = `${log.category_id}_${log.vote_type}`;
-                          if (!counts[key]) counts[key] = { category_id: log.category_id, vote_type: log.vote_type, count: 0 };
+                          const key = log.candidate_id ? `cand_${log.candidate_id}` : `${log.category_id}_${log.vote_type}`;
+                          if (!counts[key]) counts[key] = { category_id: log.category_id, vote_type: log.vote_type, count: 0, candidate_id: log.candidate_id };
                           counts[key].count++;
                         });
-                        setVoteLogs(Object.values(counts));
+                        setVoteLogs(Object.values(counts) as any);
                       }
                     }
                   }}
@@ -1268,9 +1268,29 @@ export default function App() {
                       </button>
                       <button
                         onClick={async () => {
-                          const totalGeral = voteSteps.reduce((sum, s) => sum + s.candidates.reduce((cs, c) => cs + (c.votes || 0), 0), 0);
-                          const whiteVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
-                          const nullVotes = (cat_id: string) => voteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
+                          // Refresh data one last time before printing
+                          setIsLoading(true);
+                          await loadDataFromSupabase();
+                          
+                          let currentVoteLogs = voteLogs;
+                          if (isSupabaseConfigured) {
+                            const { data } = await supabase.from('vote_logs').select('category_id, vote_type, candidate_id');
+                            if (data) {
+                              const counts: { [key: string]: { category_id: string; vote_type: string; count: number; candidate_id?: string } } = {};
+                              data.forEach((log: any) => {
+                                const key = log.candidate_id ? `cand_${log.candidate_id}` : `${log.category_id}_${log.vote_type}`;
+                                if (!counts[key]) counts[key] = { category_id: log.category_id, vote_type: log.vote_type, count: 0, candidate_id: log.candidate_id };
+                                counts[key].count++;
+                              });
+                              currentVoteLogs = Object.values(counts) as any;
+                              setVoteLogs(currentVoteLogs);
+                            }
+                          }
+                          setIsLoading(false);
+
+                          const getCandidateVotesFromLogs = (candId: string) => currentVoteLogs.find(l => l.candidate_id === candId)?.count || 0;
+                          const whiteVotes = (cat_id: string) => currentVoteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
+                          const nullVotes = (cat_id: string) => currentVoteLogs.filter(l => l.category_id === cat_id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
 
                           let sessionData = null;
                           if (isSupabaseConfigured) {
@@ -1299,24 +1319,26 @@ export default function App() {
                           }
                           html += `<div class="meta-info" style="color:#666; border-bottom: 1px dashed #ccc; padding-bottom: 8px;"><span>EMITIDO:</span><span>${new Date().toLocaleString('pt-BR')}</span></div>`;
 
+                          let grandTotalVotos = 0;
 
                           [...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).forEach(step => {
-                            const catVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
+                            const stepCandVotes = step.candidates.reduce((s, c) => s + (c.id ? getCandidateVotesFromLogs(c.id) : 0), 0);
                             const wv = step.id ? whiteVotes(step.id) : 0;
                             const nv = step.id ? nullVotes(step.id) : 0;
-                            const totalCat = catVotes + wv + nv;
+                            const totalCat = stepCandVotes + wv + nv;
+                            grandTotalVotos += totalCat;
+                            
                             html += `<h2>${step.title}</h2>`;
                             step.candidates.filter(c => !c.suspended).forEach(c => {
-                              html += `<div class="row"><span>${c.number} - ${c.name}</span><span>${c.votes || 0}</span></div>`;
+                              const v = c.id ? getCandidateVotesFromLogs(c.id) : 0;
+                              html += `<div class="row"><span>${c.number} - ${c.name}</span><span>${v}</span></div>`;
                             });
                             html += `<div class="row"><span>VOTOS EM BRANCO</span><span>${wv}</span></div>`;
                             html += `<div class="row"><span>VOTOS NULOS</span><span>${nv}</span></div>`;
                             html += `<div class="row total"><span>TOTAL ${step.title}</span><span>${totalCat}</span></div>`;
                           });
 
-                          const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
-                          const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
-                          html += `<div class="grand-total">TOTAL GERAL DE VOTOS: ${totalGeral + totalWhite + totalNull}</div>`;
+                          html += `<div class="grand-total">TOTAL GERAL DE VOTOS: ${grandTotalVotos}</div>`;
                           html += `<div class="footer">COMITÊ MAIS INFÂNCIA<br/>Urna Eletrônica</div>`;
                           html += `</body></html>`;
 
@@ -1337,18 +1359,19 @@ export default function App() {
 
                   {/* Resumo geral */}
                   {(() => {
-                    const totalCandidateVotes = voteSteps.reduce((sum, s) => sum + s.candidates.reduce((cs, c) => cs + (c.votes || 0), 0), 0);
-                    const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((s, l) => s + l.count, 0);
-                    const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((s, l) => s + l.count, 0);
-                    const totalGeral = totalCandidateVotes + totalWhite + totalNull;
+                    const totalGeralVotosDirect = voteLogs.reduce((sum, l) => sum + l.count, 0);
+                    const totalWhite = voteLogs.filter(l => l.vote_type === 'white').reduce((sum, l) => sum + l.count, 0);
+                    const totalNull = voteLogs.filter(l => l.vote_type === 'null').reduce((sum, l) => sum + l.count, 0);
+                    const totalNominal = totalGeralVotosDirect - totalWhite - totalNull;
+                    
                     return (
                       <div className="bg-white border-2 border-zinc-300 p-4 mb-4">
                         <div className="flex items-center justify-between">
                           <span className="font-black text-zinc-800 uppercase text-sm">Total Geral de Votos</span>
-                          <span className="font-black text-3xl text-emerald-600">{totalGeral}</span>
+                          <span className="font-black text-3xl text-emerald-600">{totalGeralVotosDirect}</span>
                         </div>
                         <div className="flex gap-4 mt-2">
-                          <span className="text-[10px] font-bold text-zinc-500 uppercase">Nominais: {totalCandidateVotes}</span>
+                          <span className="text-[10px] font-bold text-zinc-500 uppercase">Nominais: {totalNominal}</span>
                           <span className="text-[10px] font-bold text-zinc-500 uppercase">Brancos: {totalWhite}</span>
                           <span className="text-[10px] font-bold text-zinc-500 uppercase">Nulos: {totalNull}</span>
                         </div>
@@ -1356,14 +1379,15 @@ export default function App() {
                     );
                   })()}
 
-                  {/* Por faixa etária */}
+                   {/* Por faixa etária */}
                   <div className="flex-1 overflow-y-auto space-y-3 pr-2">
                     {[...voteSteps].sort((a, b) => a.title.localeCompare(b.title)).map(step => {
-                      const catCandidateVotes = step.candidates.reduce((s, c) => s + (c.votes || 0), 0);
+                      const getCandVotes = (candId: string) => voteLogs.find(l => l.candidate_id === candId)?.count || 0;
                       const whiteVotes = step.id ? voteLogs.filter(l => l.category_id === step.id && l.vote_type === 'white').reduce((s, l) => s + l.count, 0) : 0;
                       const nullVotes = step.id ? voteLogs.filter(l => l.category_id === step.id && l.vote_type === 'null').reduce((s, l) => s + l.count, 0) : 0;
-                      const totalCat = catCandidateVotes + whiteVotes + nullVotes;
-                      const maxVotes = Math.max(...step.candidates.map(c => c.votes || 0), 1);
+                      const stepCandVotes = step.candidates.reduce((s, c) => s + (c.id ? getCandVotes(c.id) : 0), 0);
+                      const totalCat = stepCandVotes + whiteVotes + nullVotes;
+                      const maxVotes = Math.max(...step.candidates.map(c => c.id ? getCandVotes(c.id) : 0), 1);
 
                       return (
                         <div key={step.title} className="bg-white border-2 border-zinc-300 p-4">
@@ -1372,20 +1396,23 @@ export default function App() {
                             <span className="font-black text-lg text-emerald-600">{totalCat} <span className="text-[10px] text-zinc-500 font-bold">votos</span></span>
                           </div>
                           <div className="space-y-2">
-                            {step.candidates.filter(c => !c.suspended).map(c => (
-                              <div key={c.number} className="flex items-center gap-3">
-                                <span className="text-[10px] font-bold text-zinc-500 w-10 text-right">{c.number}</span>
-                                <div className="flex-1">
-                                  <div className="flex justify-between items-baseline">
-                                    <span className="text-xs font-bold text-zinc-800 uppercase truncate">{c.name}</span>
-                                    <span className="font-black text-emerald-600 text-sm ml-2">{c.votes || 0}</span>
-                                  </div>
-                                  <div className="w-full bg-zinc-200 h-2 mt-1 rounded-full overflow-hidden">
-                                    <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${((c.votes || 0) / maxVotes) * 100}%` }}></div>
+                            {step.candidates.filter(c => !c.suspended).map(c => {
+                              const v = c.id ? getCandVotes(c.id) : 0;
+                              return (
+                                <div key={c.number} className="flex items-center gap-3">
+                                  <span className="text-[10px] font-bold text-zinc-500 w-10 text-right">{c.number}</span>
+                                  <div className="flex-1">
+                                    <div className="flex justify-between items-baseline">
+                                      <span className="text-xs font-bold text-zinc-800 uppercase truncate">{c.name}</span>
+                                      <span className="font-black text-emerald-600 text-sm ml-2">{v}</span>
+                                    </div>
+                                    <div className="w-full bg-zinc-200 h-2 mt-1 rounded-full overflow-hidden">
+                                      <div className="bg-emerald-500 h-full rounded-full transition-all" style={{ width: `${(v / maxVotes) * 100}%` }}></div>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                             <div className="flex gap-4 mt-2 pt-2 border-t border-zinc-100">
                               <span className="text-[10px] font-bold text-zinc-400 uppercase">Brancos: {whiteVotes}</span>
                               <span className="text-[10px] font-bold text-zinc-400 uppercase">Nulos: {nullVotes}</span>
